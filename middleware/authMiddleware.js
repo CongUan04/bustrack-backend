@@ -70,7 +70,9 @@ async function protectIoT(req, res, next) {
     }
 
     // ── Ưu tiên 2: API Key (dành cho ESP32 phần cứng) ────────
-    const apiKey = req.headers['x-api-key'];
+    // Hỗ trợ cả Header (x-api-key) VÀ Query Parameter (?api_key=...)
+    // Vì thư viện HTTPClient của ESP32 hay bị lỗi drop custom headers khi gửi PUT/PATCH
+    const apiKey = req.headers['x-api-key'] || req.query.api_key;
     if (apiKey && apiKey === process.env.IOT_API_KEY) {
         req.user = { role: 'iot_device' }; // gán pseudo-user để log nếu cần
         return next();

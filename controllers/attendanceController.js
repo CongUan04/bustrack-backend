@@ -105,6 +105,7 @@ const getBusStudentsToday = async (req, res) => {
     }
 };
 
+// ── Export — đặt SAU KHI rfidScan đã được định nghĩa ────────
 module.exports = { getLogs, getKpi, rfidScan, getBusStudentsToday };
 
 // ── POST /api/attendance/scan ─────────────────────────────────

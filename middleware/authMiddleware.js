@@ -46,8 +46,6 @@ const authorize = (...roles) => {
     };
 };
 
-module.exports = { protect, authorize, protectIoT };
-
 /**
  * protectIoT — Middleware linh hoạt cho thiết bị IoT (ESP32)
  *
@@ -63,8 +61,6 @@ async function protectIoT(req, res, next) {
     if (authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.split(' ')[1];
         try {
-            const jwt = require('jsonwebtoken');
-            const User = require('../models/User');
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
             req.user = await User.findById(decoded.id).select('-password');
             if (req.user) return next();
@@ -87,3 +83,5 @@ async function protectIoT(req, res, next) {
     });
 }
 
+// ── Export — đặt SAU KHI tất cả hàm đã được định nghĩa ──────
+module.exports = { protect, authorize, protectIoT };

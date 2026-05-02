@@ -46,9 +46,8 @@ const httpServer = http.createServer(app);
 
 const io = new Server(httpServer, {
     cors: {
-        origin: true, // Cho phép socket kết nối từ máy ảo / điện thoại mượt mà
-        methods: ['GET', 'POST'],
-        credentials: true,
+        origin: "*", // [QUAN TRỌNG] Cho phép mọi frontend kết nối (Localhost, Vercel, Netlify...)
+        methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'],
     },
 });
 

@@ -73,12 +73,24 @@ async function protectIoT(req, res, next) {
     // Hỗ trợ cả Header (x-api-key) VÀ Query Parameter (?api_key=...)
     // Vì thư viện HTTPClient của ESP32 hay bị lỗi drop custom headers khi gửi PUT/PATCH
     const apiKey = req.headers['x-api-key'] || req.query.api_key;
+    
+    // DEBUG LOG: In ra để kiểm tra
+    if (req.originalUrl.includes('/location')) {
+        console.log(`[protectIoT] GPS Request tới URL: ${req.originalUrl}`);
+        console.log(`[protectIoT] header x-api-key: '${req.headers['x-api-key']}'`);
+        console.log(`[protectIoT] query api_key: '${req.query.api_key}'`);
+        console.log(`[protectIoT] process.env.IOT_API_KEY: '${process.env.IOT_API_KEY}'`);
+    }
+
     if (apiKey && apiKey === process.env.IOT_API_KEY) {
         req.user = { role: 'iot_device' }; // gán pseudo-user để log nếu cần
         return next();
     }
 
     // ── Không có cơ chế hợp lệ nào ───────────────────────────
+    if (req.originalUrl.includes('/location')) {
+        console.log(`[protectIoT] ❌ TỪ CHỐI truy cập GPS vì apiKey sai! apiKey thu được: '${apiKey}'`);
+    }
     return res.status(401).json({
         success: false,
         message: 'Unauthorized: Cần JWT hoặc x-api-key hợp lệ',

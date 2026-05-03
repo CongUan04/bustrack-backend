@@ -6,6 +6,7 @@ const cors = require('cors');
 const connectDB = require('./config/db');
 const { initBot } = require('./services/telegramService');
 const Bus = require('./models/Bus');
+const socketHelper = require('./socket');
 
 // Load biến môi trường từ file .env
 dotenv.config();
@@ -51,6 +52,9 @@ const io = new Server(httpServer, {
     },
 });
 
+// ── Đăng ký io vào singleton để tránh circular dependency ────
+socketHelper.setIo(io);
+
 io.on('connection', (socket) => {
     console.log(`🔌 [Socket] Client kết nối: ${socket.id}`);
     socket.on('disconnect', () => {
@@ -58,7 +62,7 @@ io.on('connection', (socket) => {
     });
 });
 
-// Export io để các controller dùng emit
+// Export io để các controller dùng emit (backward compat)
 module.exports.io = io;
 
 // ── Cron Job: Đánh dấu xe offline nếu mất tín hiệu quá lâu ───

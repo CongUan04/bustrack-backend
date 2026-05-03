@@ -1,9 +1,7 @@
 const Alert = require('../models/Alert');
+const socketHelper = require('../socket');
 
-const getIo = () => {
-    try { return require('../server').io; }
-    catch { return null; }
-};
+const getIo = () => socketHelper.getIo();
 
 // ── GET /api/alerts ───────────────────────────────────────────
 const getAll = async (req, res) => {

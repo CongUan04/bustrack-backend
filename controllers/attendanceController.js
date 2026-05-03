@@ -3,11 +3,9 @@ const Student = require('../models/Student');
 const Bus = require('../models/Bus');
 const User = require('../models/User');
 const { sendMessageToParent } = require('../services/telegramService');
+const socketHelper = require('../socket');
 
-const getIo = () => {
-    try { return require('../server').io; }
-    catch { return null; }
-};
+const getIo = () => socketHelper.getIo();
 
 // ── GET /api/attendance ───────────────────────────────────────
 // Query params: from, to, bus_id, student_id, action_type, limit

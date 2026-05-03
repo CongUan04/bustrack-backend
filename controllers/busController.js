@@ -3,6 +3,7 @@ const Student = require('../models/Student');
 const User = require('../models/User');
 const { sendMessageToParent } = require('../services/telegramService');
 const mongoose = require('mongoose');
+const socketHelper = require('../socket');
 
 // Cache để chống spam thông báo (key: busId_stopName, value: timestamp)
 const stopNotifications = new Map();
@@ -19,11 +20,8 @@ function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
     return R * c;
 }
 
-// Helper: lấy io instance từ server.js (lazy require tránh circular)
-const getIo = () => {
-    try { return require('../server').io; }
-    catch { return null; }
-};
+// Helper: lấy io instance qua singleton (tránh circular dependency)
+const getIo = () => socketHelper.getIo();
 
 // ── GET /api/buses ────────────────────────────────────────────
 const getAll = async (req, res) => {

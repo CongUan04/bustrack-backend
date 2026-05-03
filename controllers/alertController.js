@@ -1,5 +1,10 @@
 const Alert = require('../models/Alert');
 
+const getIo = () => {
+    try { return require('../server').io; }
+    catch { return null; }
+};
+
 // ── GET /api/alerts ───────────────────────────────────────────
 const getAll = async (req, res) => {
     try {
@@ -53,6 +58,12 @@ const acknowledgeAll = async (req, res) => {
 const create = async (req, res) => {
     try {
         const alert = await Alert.create(req.body);
+        
+        const io = getIo();
+        if (io) {
+            io.emit('new_alert', alert);
+        }
+        
         return res.status(201).json({ success: true, data: alert });
     } catch (err) {
         return res.status(500).json({ success: false, message: err.message });

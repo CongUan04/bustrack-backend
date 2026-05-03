@@ -145,11 +145,11 @@ async function rfidScan(req, res) {
             });
         }
 
-        // 2. Tìm xe bus theo MAC address của ESP32
+        // 2. Tìm xe bus theo MAC address của ESP32 (kèm theo tuyến đường để kiểm tra điểm dừng)
         const bus = await Bus.findOne({
             device_mac_address: device_mac_address.trim().toUpperCase(),
             isActive: true,
-        });
+        }).populate('route_id');
         if (!bus) {
             return res.status(404).json({
                 success: false,
@@ -168,6 +168,44 @@ async function rfidScan(req, res) {
         student.currentStatus = newStatus;
         await student.save();
 
+        // 3.5 [Giai đoạn 3] Cảnh báo xuống sai điểm (Wrong Stop)
+        let isAbnormal = false;
+        let abnormalReason = null;
+        let alertMessage = null;
+
+        if (action_type === 'Dropping' && bus.currentLat && bus.currentLng && bus.route_id) {
+            function getDist(lat1, lon1, lat2, lon2) {
+                const R = 6371;
+                const dLat = (lat2 - lat1) * Math.PI / 180;
+                const dLon = (lon2 - lon1) * Math.PI / 180;
+                const a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
+                return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            }
+
+            const { schoolPos, stops } = bus.route_id;
+            let minDist = 9999;
+            
+            // So sánh với điểm trường học
+            if (schoolPos && schoolPos.lat && schoolPos.lng) {
+                minDist = Math.min(minDist, getDist(bus.currentLat, bus.currentLng, schoolPos.lat, schoolPos.lng));
+            }
+            // So sánh với tất cả các điểm dừng
+            if (stops && stops.length > 0) {
+                stops.forEach(stop => {
+                    if (stop.lat && stop.lng) {
+                        minDist = Math.min(minDist, getDist(bus.currentLat, bus.currentLng, stop.lat, stop.lng));
+                    }
+                });
+            }
+
+            // Nếu cách tất cả các điểm > 0.5km (500m)
+            if (minDist > 0.5 && minDist !== 9999) {
+                isAbnormal = true;
+                abnormalReason = `Xuống sai điểm (Cách điểm hợp lệ gần nhất ~${(minDist).toFixed(1)}km)`;
+                alertMessage = `🚨 *CẢNH BÁO KHẨN CẤP*\n\nHọc sinh *${student.fullName}* vừa quẹt thẻ XUỐNG XE tại vị trí BẤT THƯỜNG (không khớp với bất kỳ điểm dừng nào trong lộ trình).\n\n📞 Phụ huynh vui lòng liên hệ nhà trường hoặc tài xế ngay lập tức!`;
+            }
+        }
+
         // 5. Tạo bản ghi AttendanceLog
         const log = await AttendanceLog.create({
             student_id: student._id,
@@ -175,6 +213,8 @@ async function rfidScan(req, res) {
             action_type,
             lat_at_scan: bus.currentLat ?? null,
             lng_at_scan: bus.currentLng ?? null,
+            isAbnormal,
+            abnormalReason,
         });
 
         // 6. Gửi thông báo Telegram cho Phụ huynh (nếu đã liên kết)
@@ -182,15 +222,20 @@ async function rfidScan(req, res) {
             // Chỉ select đúng trường cần, không lấy password
             const parentUser = await User.findById(student.parent_id).select('telegram_chat_id fullName');
             if (parentUser?.telegram_chat_id) {
-                const scanTime = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
-                const actionText = action_type === 'Boarding' ? '🟢 *Lên xe*' : '🔴 *Xuống xe*';
-                const telegramMsg =
-                    `🚌 *Thông báo điểm danh xe buýt*\n\n` +
-                    `👦 Học sinh: *${student.fullName}*\n` +
-                    `📋 Mã HS: ${student.studentCode}\n` +
-                    `🚍 Xe: ${bus.licensePlate}\n` +
-                    `📍 Trạng thái: ${actionText}\n` +
-                    `🕐 Thời gian: ${scanTime}`;
+                let telegramMsg;
+                if (isAbnormal && alertMessage) {
+                    telegramMsg = alertMessage;
+                } else {
+                    const scanTime = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+                    const actionText = action_type === 'Boarding' ? '🟢 *Lên xe*' : '🔴 *Xuống xe*';
+                    telegramMsg =
+                        `🚌 *Thông báo điểm danh xe buýt*\n\n` +
+                        `👦 Học sinh: *${student.fullName}*\n` +
+                        `📋 Mã HS: ${student.studentCode}\n` +
+                        `🚍 Xe: ${bus.licensePlate}\n` +
+                        `📍 Trạng thái: ${actionText}\n` +
+                        `🕐 Thời gian: ${scanTime}`;
+                }
 
                 // Fire-and-forget: không dùng await để không chặn response về ESP32
                 sendMessageToParent(parentUser.telegram_chat_id, telegramMsg);
@@ -209,6 +254,8 @@ async function rfidScan(req, res) {
                 licensePlate: bus.licensePlate,
                 action: action_type,
                 timestamp: new Date().toISOString(),
+                isAbnormal,
+                abnormalReason,
             });
         }
 

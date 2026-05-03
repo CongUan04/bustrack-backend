@@ -1,5 +1,23 @@
 const Bus = require('../models/Bus');
+const Student = require('../models/Student');
+const User = require('../models/User');
+const { sendMessageToParent } = require('../services/telegramService');
 const mongoose = require('mongoose');
+
+// Cache để chống spam thông báo (key: busId_stopName, value: timestamp)
+const stopNotifications = new Map();
+
+function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Bán kính trái đất (km)
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+}
 
 // Helper: lấy io instance từ server.js (lazy require tránh circular)
 const getIo = () => {
@@ -54,7 +72,7 @@ const updateLocation = async (req, res) => {
             id,
             { currentLat: lat, currentLng: lng, currentSpeed: speed, isOnline: true, lastSeen: new Date() },
             { new: true }
-        ).populate('route_id', 'routeName');
+        ).populate('route_id', 'routeName stops');
 
         // Nếu không tìm thấy xe trong MongoDB, in log rõ ràng
         if (!bus) {
@@ -63,6 +81,44 @@ const updateLocation = async (req, res) => {
         }
 
         console.log(`[GPS ✅] Cập nhật tọa độ thành công cho xe: ${bus.licensePlate} (${lat}, ${lng})`);
+
+        // 1.5 GPS Proximity Logic (Giai đoạn 2) - Thông báo sắp đến trạm
+        if (bus.route_id && bus.route_id.stops && bus.route_id.stops.length > 0) {
+            const NOW = Date.now();
+            for (const stop of bus.route_id.stops) {
+                if (!stop.lat || !stop.lng) continue;
+                const distance = getDistanceFromLatLonInKm(lat, lng, stop.lat, stop.lng);
+                
+                // Nếu cách trạm <= 1km
+                if (distance <= 1.0) {
+                    const cacheKey = `${bus._id.toString()}_${stop.stopName}`;
+                    const lastNotified = stopNotifications.get(cacheKey);
+                    
+                    // Chống spam: 30 phút mới thông báo lại 1 lần cho cùng 1 trạm
+                    if (!lastNotified || NOW - lastNotified > 30 * 60 * 1000) {
+                        stopNotifications.set(cacheKey, NOW);
+                        
+                        Student.find({ route_id: bus.route_id._id, isActive: true })
+                            .populate('parent_id', 'telegram_chat_id')
+                            .then(students => {
+                                const chatIds = new Set();
+                                students.forEach(s => {
+                                    if (s.parent_id && s.parent_id.telegram_chat_id) {
+                                        chatIds.add(s.parent_id.telegram_chat_id);
+                                    }
+                                });
+                                
+                                const msg = `🚌 *Thông báo Hành trình*\n\nXe buýt *${bus.licensePlate}* đang cách điểm đón/trả *${stop.stopName}* khoảng dưới 1km (tầm 3-5 phút).\nPhụ huynh vui lòng lưu ý và chuẩn bị!`;
+                                
+                                chatIds.forEach(chatId => {
+                                    sendMessageToParent(chatId, msg);
+                                });
+                            })
+                            .catch(err => console.error('[GPS Proximity] Lỗi khi gửi Telegram:', err));
+                    }
+                }
+            }
+        }
 
         // 2. BẮT BUỘC: Phát sự kiện GPS real-time ra Frontend qua Socket.io
         const io = getIo();

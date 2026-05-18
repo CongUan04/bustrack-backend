@@ -203,11 +203,13 @@ const getMyChildren = async (req, res) => {
 // ── PUT /api/students/:id/absent ──────────────────────────────
 const markAbsent = async (req, res) => {
     try {
+        const { reason } = req.body; // lý do vắng mặt (tuỳ chọn)
         const student = await Student.findById(req.params.id);
         if (!student) return res.status(404).json({ success: false, message: 'Không tìm thấy học sinh' });
         
-        // Cập nhật trạng thái thành 'Absent'
+        // Cập nhật trạng thái và lý do
         student.currentStatus = 'Absent';
+        student.absenceReason = reason || null;
         await student.save();
         await student.populate('route_id', 'routeName stops');
         
@@ -217,7 +219,8 @@ const markAbsent = async (req, res) => {
             io.emit('student_status_update', {
                 studentId: student._id,
                 status: 'Absent',
-                studentName: student.fullName
+                studentName: student.fullName,
+                reason: reason || null,
             });
         }
         

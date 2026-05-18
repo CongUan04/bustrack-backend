@@ -67,6 +67,11 @@ const studentSchema = new mongoose.Schema(
                 message: 'studyDays phải là số từ 0 (CN) đến 6 (T7)',
             },
         },
+        // Lý do vắng mặt hôm nay (reset mỗi ngày bởi cron hoặc khi đổi trạng thái)
+        absenceReason: {
+            type: String,
+            default: null,
+        },
     },
     { timestamps: true }
 );

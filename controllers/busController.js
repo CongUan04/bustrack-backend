@@ -96,6 +96,20 @@ const updateLocation = async (req, res) => {
                     if (!lastNotified || NOW - lastNotified > 30 * 60 * 1000) {
                         stopNotifications.set(cacheKey, NOW);
                         
+                        // 1. Tạo cảnh báo (Alert) cho Admin
+                        const Alert = require('../models/Alert');
+                        const adminMsg = `Xe ${bus.licensePlate} đang tiến đến trạm ${stop.stopName} (cách < 1km)`;
+                        Alert.create({
+                            type: 'Info',
+                            message: adminMsg,
+                            severity: 'info',
+                            bus_id: bus._id
+                        }).then(alertDoc => {
+                            const io = getIo();
+                            if (io) io.emit('new_alert', alertDoc);
+                        }).catch(err => console.error('[GPS Proximity] Lỗi tạo Alert cho admin:', err));
+
+                        // 2. Gửi Telegram cho phụ huynh
                         Student.find({ route_id: bus.route_id._id, isActive: true })
                             .populate('parent_id', 'telegram_chat_id')
                             .then(students => {

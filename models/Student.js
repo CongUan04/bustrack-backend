@@ -46,7 +46,7 @@ const studentSchema = new mongoose.Schema(
         },
         currentStatus: {
             type: String,
-            enum: ['Not_Boarded', 'On_Bus', 'Dropped_Off'],
+            enum: ['Not_Boarded', 'On_Bus', 'Dropped_Off', 'Absent'],
             default: 'Not_Boarded',
         },
         photoUrl: {
@@ -56,6 +56,16 @@ const studentSchema = new mongoose.Schema(
         isActive: {
             type: Boolean,
             default: true,
+        },
+        // Ngày học trong tuần: 0=CN, 1=T2, 2=T3, 3=T4, 4=T5, 5=T6, 6=T7
+        // Mặc định T2-T6 (học sinh học từ Thứ 2 đến Thứ 6)
+        studyDays: {
+            type: [Number],
+            default: [1, 2, 3, 4, 5],
+            validate: {
+                validator: (arr) => arr.every(d => d >= 0 && d <= 6),
+                message: 'studyDays phải là số từ 0 (CN) đến 6 (T7)',
+            },
         },
     },
     { timestamps: true }

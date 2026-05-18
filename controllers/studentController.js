@@ -1,5 +1,7 @@
 const Student = require('../models/Student');
 const User = require('../models/User');
+const socketHelper = require('../socket');
+const getIo = () => socketHelper.getIo();
 const Route = require('../models/Route');
 const { sendWelcomeEmail } = require('../services/emailService');
 
@@ -198,4 +200,55 @@ const getMyChildren = async (req, res) => {
     }
 };
 
-module.exports = { getAll, getOne, create, update, remove, getMyChildren };
+// ── PUT /api/students/:id/absent ──────────────────────────────
+const markAbsent = async (req, res) => {
+    try {
+        const student = await Student.findById(req.params.id);
+        if (!student) return res.status(404).json({ success: false, message: 'Không tìm thấy học sinh' });
+        
+        // Cập nhật trạng thái thành 'Absent'
+        student.currentStatus = 'Absent';
+        await student.save();
+        await student.populate('route_id', 'routeName stops');
+        
+        // Phát sự kiện realtime cho Driver
+        const io = getIo();
+        if (io) {
+            io.emit('student_status_update', {
+                studentId: student._id,
+                status: 'Absent',
+                studentName: student.fullName
+            });
+        }
+        
+        return res.json({ success: true, message: `Đã báo vắng mặt cho học sinh ${student.fullName}`, data: student });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+// ── PUT /api/students/:id/study-days (Parent only) ────────────
+const updateStudyDays = async (req, res) => {
+    try {
+        const { studyDays } = req.body;
+        if (!Array.isArray(studyDays)) {
+            return res.status(400).json({ success: false, message: 'studyDays phải là mảng số nguyên' });
+        }
+        const student = await Student.findById(req.params.id);
+        if (!student) return res.status(404).json({ success: false, message: 'Không tìm thấy học sinh' });
+
+        // Chỉ phụ huynh sở hữu học sinh mới được sửa
+        if (req.user.role === 'Parent' && String(student.parent_id) !== String(req.user.id)) {
+            return res.status(403).json({ success: false, message: 'Bạn không có quyền sửa lịch học của học sinh này' });
+        }
+
+        student.studyDays = studyDays;
+        await student.save();
+        return res.json({ success: true, message: 'Đã cập nhật lịch học', data: student });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+module.exports = { getAll, getOne, create, update, remove, getMyChildren, markAbsent, updateStudyDays };
+

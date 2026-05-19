@@ -77,12 +77,15 @@ const create = async (req, res) => {
         let isNewParent = false;
         let rawPassword = null; // lưu mật khẩu thô để gửi email
         let hasRealEmail = false;
+        let emailSent = false;
+        let shouldSendEmail = false;
+        let emailTarget = null;
 
         if (parentPhone) {
             parentUser = await User.findOne({ phone: parentPhone.trim() });
 
             if (!parentUser) {
-                // Nếu có email thật → dùng luôn; nếu không → tạo placeholder và đánh dấu isEmailSet=false
+                // ── Phụ huynh chưa tồn tại → tạo mới ──
                 hasRealEmail = !!(parentEmail && parentEmail.trim());
                 const finalEmail = hasRealEmail
                     ? parentEmail.trim()
@@ -95,12 +98,38 @@ const create = async (req, res) => {
                     username: parentPhone.trim(),
                     phone: parentPhone.trim(),
                     email: finalEmail,
-                    isEmailSet: hasRealEmail,   // false → frontend sẽ nhắc nhở cập nhật email thật
+                    isEmailSet: hasRealEmail,
                     password: rawPassword,
                     role: 'Parent',
                 });
                 isNewParent = true;
+
+                console.log(`[Student] ✅ Tạo tài khoản phụ huynh mới: ${parentPhone.trim()}, email: ${finalEmail}, isEmailSet: ${hasRealEmail}`);
+
+                if (hasRealEmail) {
+                    shouldSendEmail = true;
+                    emailTarget = parentEmail.trim();
+                    console.log(`[Student] 📧 Sẽ gửi welcome email tới: ${emailTarget}`);
+                } else {
+                    console.log(`[Student] ℹ️  Không có email thật → bỏ qua gửi email (dùng placeholder).`);
+                }
+            } else {
+                // ── Phụ huynh đã tồn tại → kiểm tra có cần cập nhật email không ──
+                console.log(`[Student] ℹ️  Phụ huynh đã tồn tại (phone: ${parentPhone.trim()}) → dùng lại tài khoản.`);
+
+                // Nếu admin cung cấp email thật VÀ tài khoản chưa có email thật → cập nhật
+                if (parentEmail && parentEmail.trim() && !parentUser.isEmailSet) {
+                    rawPassword = '123456'; // mật khẩu hiện tại không thay đổi, chỉ thông báo
+                    parentUser.email = parentEmail.trim();
+                    parentUser.isEmailSet = true;
+                    await parentUser.save();
+                    shouldSendEmail = true;
+                    emailTarget = parentEmail.trim();
+                    console.log(`[Student] 📧 Cập nhật email thật cho phụ huynh và sẽ gửi thông báo tới: ${emailTarget}`);
+                }
             }
+        } else {
+            console.log(`[Student] ⚠️  Không có số điện thoại phụ huynh → không tạo tài khoản.`);
         }
 
         // ── Tạo học sinh, gán parent_id ──────────────
@@ -110,27 +139,36 @@ const create = async (req, res) => {
             route_id, fatherPhone, motherPhone,
         });
 
-        // ── Gửi Welcome Email nếu phụ huynh mới CÓ email thật ───────────────
-        // Chạy non-blocking (không await) để không làm chậm response
-        if (isNewParent && hasRealEmail && parentEmail) {
-            sendWelcomeEmail(parentEmail.trim(), {
+        // ── Gửi Welcome Email (non-blocking) ─────────────────────────────────
+        if (shouldSendEmail && emailTarget) {
+            sendWelcomeEmail(emailTarget, {
                 studentName: fullName,
                 username: parentPhone.trim(),
-                password: rawPassword,
-            }).catch(err => console.error('[Email] Lỗi gửi welcome email:', err.message));
+                password: rawPassword || '123456',
+            })
+                .then(() => { emailSent = true; })
+                .catch(err => console.error('[Email] ❌ Lỗi gửi welcome email:', err.message));
         }
 
         // ── Trả về thông tin học sinh ──────────────
+        let message = 'Đã thêm học sinh thành công';
+        if (isNewParent) {
+            message = shouldSendEmail
+                ? `Đã tạo tài khoản phụ huynh và gửi email thông báo tới ${emailTarget}`
+                : 'Đã tạo tài khoản phụ huynh (không có email → dùng mật khẩu mặc định: 123456)';
+        } else if (shouldSendEmail) {
+            message = `Đã cập nhật email phụ huynh và gửi thông báo tới ${emailTarget}`;
+        }
+
         const responseData = {
             success: true,
             data: student,
+            message,
+            parentInfo: parentUser ? {
+                isNew: isNewParent,
+                emailSentTo: shouldSendEmail ? emailTarget : null,
+            } : null,
         };
-
-        if (isNewParent) {
-            responseData.message = hasRealEmail
-                ? 'Đã tạo tài khoản phụ huynh và gửi email thông báo'
-                : 'Đã tạo tài khoản phụ huynh mặc định';
-        }
 
         return res.status(201).json(responseData);
     } catch (err) {

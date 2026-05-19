@@ -420,10 +420,10 @@ const sendOtpEmail = async (toEmail, otp) => {
 
     try {
         const info = await tp.sendMail(mailOptions);
-        console.log(`[Email] ✅ Đã gửi OTP email tới ${toEmail} — messageId: ${info.messageId}`);
+        console.log(`[Email] Đã gửi OTP email tới ${toEmail} — messageId: ${info.messageId}`);
         return true;
     } catch (err) {
-        console.error(`[Email] ❌ Gửi OTP email tới ${toEmail} thất bại:`, err.message);
+        console.error(`[Email] Gửi OTP email tới ${toEmail} thất bại:`, err.message);
         return false;
     }
 };

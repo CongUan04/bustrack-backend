@@ -80,7 +80,7 @@ const create = async (req, res) => {
 
         if (parentPhone) {
             parentUser = await User.findOne({ phone: parentPhone.trim() });
-            
+
             if (!parentUser) {
                 // Nếu có email thật → dùng luôn; nếu không → tạo placeholder và đánh dấu isEmailSet=false
                 hasRealEmail = !!(parentEmail && parentEmail.trim());
@@ -125,7 +125,7 @@ const create = async (req, res) => {
             success: true,
             data: student,
         };
-        
+
         if (isNewParent) {
             responseData.message = hasRealEmail
                 ? 'Đã tạo tài khoản phụ huynh và gửi email thông báo'
@@ -206,13 +206,13 @@ const markAbsent = async (req, res) => {
         const { reason } = req.body; // lý do vắng mặt (tuỳ chọn)
         const student = await Student.findById(req.params.id);
         if (!student) return res.status(404).json({ success: false, message: 'Không tìm thấy học sinh' });
-        
+
         // Cập nhật trạng thái và lý do
         student.currentStatus = 'Absent';
         student.absenceReason = reason || null;
         await student.save();
         await student.populate('route_id', 'routeName stops');
-        
+
         // Phát sự kiện realtime cho Driver
         const io = getIo();
         if (io) {
@@ -223,7 +223,7 @@ const markAbsent = async (req, res) => {
                 reason: reason || null,
             });
         }
-        
+
         return res.json({ success: true, message: `Đã báo vắng mặt cho học sinh ${student.fullName}`, data: student });
     } catch (err) {
         return res.status(500).json({ success: false, message: err.message });

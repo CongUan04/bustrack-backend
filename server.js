@@ -27,15 +27,15 @@ app.use(cors({
 app.use(express.json());
 
 // ── Routes ────────────────────────────────────────────────────
-app.use('/api/auth',     require('./routes/authRoutes'));
+app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/dashboard', require('./routes/dashboardRoutes'));
-app.use('/api/students',  require('./routes/studentRoutes'));
-app.use('/api/attendance',require('./routes/attendanceRoutes'));
-app.use('/api/alerts',    require('./routes/alertRoutes'));
-app.use('/api/buses',     require('./routes/busRoutes'));
-app.use('/api/routes',    require('./routes/routeRoutes'));
-app.use('/api/telegram',  require('./routes/telegramRoutes'));
-app.use('/api/users',     require('./routes/userRoutes'));
+app.use('/api/students', require('./routes/studentRoutes'));
+app.use('/api/attendance', require('./routes/attendanceRoutes'));
+app.use('/api/alerts', require('./routes/alertRoutes'));
+app.use('/api/buses', require('./routes/busRoutes'));
+app.use('/api/routes', require('./routes/routeRoutes'));
+app.use('/api/telegram', require('./routes/telegramRoutes'));
+app.use('/api/users', require('./routes/userRoutes'));
 
 // Health check
 app.get('/', (req, res) => {
@@ -70,8 +70,8 @@ setInterval(async () => {
     try {
         const staleThreshold = new Date(Date.now() - 2 * 60 * 1000); // 2 phút
         const result = await Bus.updateMany(
-            { 
-                isOnline: true, 
+            {
+                isOnline: true,
                 $or: [
                     { lastSeen: { $lt: staleThreshold } },
                     { lastSeen: null }

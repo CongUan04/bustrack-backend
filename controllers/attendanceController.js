@@ -170,6 +170,7 @@ async function rfidScan(req, res) {
         let isAbnormal = false;
         let abnormalReason = null;
         let alertMessage = null;
+        let matchedStop = null;
 
         if (action_type === 'Dropping' && bus.currentLat && bus.currentLng && bus.route_id) {
             function getDist(lat1, lon1, lat2, lon2) {
@@ -185,13 +186,21 @@ async function rfidScan(req, res) {
             
             // So sánh với điểm trường học
             if (schoolPos && schoolPos.lat && schoolPos.lng) {
-                minDist = Math.min(minDist, getDist(bus.currentLat, bus.currentLng, schoolPos.lat, schoolPos.lng));
+                const dist = getDist(bus.currentLat, bus.currentLng, schoolPos.lat, schoolPos.lng);
+                if (dist < minDist) {
+                    minDist = dist;
+                    matchedStop = 'Trường học';
+                }
             }
             // So sánh với tất cả các điểm dừng
             if (stops && stops.length > 0) {
                 stops.forEach(stop => {
                     if (stop.lat && stop.lng) {
-                        minDist = Math.min(minDist, getDist(bus.currentLat, bus.currentLng, stop.lat, stop.lng));
+                        const dist = getDist(bus.currentLat, bus.currentLng, stop.lat, stop.lng);
+                        if (dist < minDist) {
+                            minDist = dist;
+                            matchedStop = stop.stopName || 'Điểm dừng';
+                        }
                     }
                 });
             }
@@ -211,6 +220,7 @@ async function rfidScan(req, res) {
             action_type,
             lat_at_scan: bus.currentLat ?? null,
             lng_at_scan: bus.currentLng ?? null,
+            stop_name: matchedStop,
             isAbnormal,
             abnormalReason,
         });
@@ -226,11 +236,16 @@ async function rfidScan(req, res) {
                 } else {
                     const scanTime = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
                     const actionText = action_type === 'Boarding' ? '🟢 *Lên xe*' : '🔴 *Xuống xe*';
+                    let stopText = '';
+                    if (action_type === 'Dropping' && matchedStop) {
+                        stopText = `🛑 Điểm dừng: ${matchedStop}\n`;
+                    }
                     telegramMsg =
                         `🚌 *Thông báo điểm danh xe buýt*\n\n` +
                         `👦 Học sinh: *${student.fullName}*\n` +
                         `📋 Mã HS: ${student.studentCode}\n` +
                         `🚍 Xe: ${bus.licensePlate}\n` +
+                        stopText +
                         `📍 Trạng thái: ${actionText}\n` +
                         `🕐 Thời gian: ${scanTime}`;
                 }
@@ -252,6 +267,7 @@ async function rfidScan(req, res) {
                 licensePlate: bus.licensePlate,
                 action: action_type,
                 timestamp: new Date().toISOString(),
+                stopName: matchedStop,
                 isAbnormal,
                 abnormalReason,
             });

@@ -44,10 +44,18 @@ const studentSchema = new mongoose.Schema(
             ref: 'Route',
             default: null,
         },
+        assigned_stop: {
+            type: String,
+            default: null,
+        },
         currentStatus: {
             type: String,
             enum: ['Not_Boarded', 'On_Bus', 'Dropped_Off', 'Absent'],
             default: 'Not_Boarded',
+        },
+        classStartTime: {
+            type: String,
+            default: '07:30', // HH:mm
         },
         photoUrl: {
             type: String,

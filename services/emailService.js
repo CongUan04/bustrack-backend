@@ -183,7 +183,7 @@ const buildWelcomeEmailHTML = ({ studentName, username, password, loginUrl }) =>
         </div>
         <div class="info-row">
           <span class="info-label">👤 Tên đăng nhập</span>
-          <span class="info-value">${username}</span>
+          <span class="info-value">${email}</span>
         </div>
         <div class="info-row">
           <span class="info-label">🔑 Mật khẩu</span>
@@ -198,7 +198,7 @@ const buildWelcomeEmailHTML = ({ studentName, username, password, loginUrl }) =>
 
       <!-- Nút CTA -->
       <div class="cta-wrap">
-        <a href="${loginUrl}" class="cta-btn">🚀 Đi đến trang Web</a>
+        <a href="${loginUrl}" class="cta-btn"> Đi đến trang Web</a>
       </div>
     </div>
 
@@ -240,10 +240,10 @@ const sendWelcomeEmail = async (parentEmail, loginInfo) => {
             }
         });
 
-        console.log(`[Email] ✅ Đã gửi welcome email tới ${parentEmail} qua Brevo — messageId: ${response.data.messageId}`);
+        console.log(`[Email] Đã gửi welcome email tới ${parentEmail} qua Brevo — messageId: ${response.data.messageId}`);
     } catch (err) {
         const errorMsg = err.response ? JSON.stringify(err.response.data) : err.message;
-        console.error(`[Email] ❌ Gửi email tới ${parentEmail} thất bại:`, errorMsg);
+        console.error(`[Email] Gửi email tới ${parentEmail} thất bại:`, errorMsg);
         throw new Error(errorMsg);
     }
 };
@@ -376,7 +376,7 @@ const buildOtpEmailHTML = ({ otp, loginUrl }) => `
       </div>
 
       <div class="cta-wrap">
-        <a href="${loginUrl}" class="cta-btn">🚀 Đi đến trang đăng nhập</a>
+        <a href="${loginUrl}" class="cta-btn">Đi đến trang đăng nhập</a>
       </div>
     </div>
 

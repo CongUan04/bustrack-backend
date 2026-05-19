@@ -6,7 +6,10 @@ const cors = require('cors');
 const connectDB = require('./config/db');
 const { initBot } = require('./services/telegramService');
 const Bus = require('./models/Bus');
+const Student = require('./models/Student');
 const socketHelper = require('./socket');
+const cron = require('node-cron');
+const { initAnomalyDetectionJob } = require('./cron/anomalyDetection');
 
 // Load biến môi trường từ file .env
 dotenv.config();
@@ -88,6 +91,39 @@ setInterval(async () => {
         console.error('[Bus Monitor] Lỗi update offline:', error.message);
     }
 }, 60000); // Kiểm tra mỗi 60 giây
+
+// ── Cron Job: Reset trạng thái điểm danh học sinh mỗi ngày ───
+// Chạy vào lúc 00:01 sáng mỗi ngày theo giờ Việt Nam
+cron.schedule('1 0 * * *', async () => {
+    try {
+        console.log('[Cron] Bắt đầu reset trạng thái điểm danh ngày mới...');
+        
+        // Reset toàn bộ học sinh về chưa lên xe và xoá lý do vắng mặt
+        const result = await Student.updateMany(
+            {}, 
+            { 
+                $set: { 
+                    currentStatus: 'Not_Boarded', 
+                    absenceReason: null 
+                } 
+            }
+        );
+        
+        console.log(`[Cron] ✅ Đã reset trạng thái cho ${result.modifiedCount} học sinh về Not_Boarded.`);
+        
+        // Phát sự kiện qua socket.io để cập nhật Real-time trên giao diện Admin/Driver
+        io.emit('daily_status_reset', { message: 'Trạng thái điểm danh đã được làm mới cho ngày mới' });
+        
+    } catch (error) {
+        console.error('[Cron] ❌ Lỗi khi reset trạng thái:', error.message);
+    }
+}, {
+    scheduled: true,
+    timezone: "Asia/Ho_Chi_Minh" // Đảm bảo chạy đúng theo múi giờ VN
+});
+
+// ── Khởi động các Cron Job bổ sung ────────────────────────────
+initAnomalyDetectionJob();
 
 // ── Start Server ──────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;

@@ -161,7 +161,7 @@ const updateLocation = async (req, res) => {
 // Thêm một xe buýt mới (dùng cho trang Bus Management)
 const createBus = async (req, res) => {
     try {
-        const { licensePlate, name, device_mac_address, capacity } = req.body;
+        const { licensePlate, name, device_mac_address, capacity, driver_id, route_id } = req.body;
 
         if (!licensePlate) {
             return res.status(400).json({ success: false, message: 'Biển số xe là bắt buộc' });
@@ -172,6 +172,8 @@ const createBus = async (req, res) => {
             name: name ? name.trim() : undefined,
             device_mac_address: device_mac_address ? device_mac_address.trim().toUpperCase() : undefined,
             capacity: capacity ?? 45,
+            driver_id: driver_id || null,
+            route_id: route_id || null,
         });
 
         return res.status(201).json({ success: true, data: bus });

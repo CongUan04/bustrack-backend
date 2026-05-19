@@ -248,8 +248,9 @@ const sendWelcomeEmail = async (parentEmail, loginInfo) => {
         const info = await tp.sendMail(mailOptions);
         console.log(`[Email] ✅ Đã gửi welcome email tới ${parentEmail} — messageId: ${info.messageId}`);
     } catch (err) {
-        // Ghi log nhưng KHÔNG throw — tránh làm hỏng luồng tạo học sinh
+        // Ghi log VÀ throw để caller biết gửi thất bại
         console.error(`[Email] ❌ Gửi email tới ${parentEmail} thất bại:`, err.message);
+        throw err;
     }
 };
 

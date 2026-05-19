@@ -139,25 +139,38 @@ const create = async (req, res) => {
             route_id, fatherPhone, motherPhone,
         });
 
-        // ── Gửi Welcome Email (non-blocking) ─────────────────────────────────
+        // ── Gửi Welcome Email (blocking - await để đảm bảo gửi xong trước khi response) ──
+        let emailError = null;
         if (shouldSendEmail && emailTarget) {
-            sendWelcomeEmail(emailTarget, {
-                studentName: fullName,
-                username: parentPhone.trim(),
-                password: rawPassword || '123456',
-            })
-                .then(() => { emailSent = true; })
-                .catch(err => console.error('[Email] ❌ Lỗi gửi welcome email:', err.message));
+            console.log(`[Email] 🚀 Bắt đầu gửi email tới: ${emailTarget}`);
+            console.log(`[Email] GMAIL_USER: ${process.env.GMAIL_USER ? '✅' : '❌ THIẾU'}`);
+            console.log(`[Email] GMAIL_APP_PASSWORD: ${process.env.GMAIL_APP_PASSWORD ? '✅' : '❌ THIẾU'}`);
+            try {
+                await sendWelcomeEmail(emailTarget, {
+                    studentName: fullName,
+                    username: parentPhone.trim(),
+                    password: rawPassword || '123456',
+                });
+                emailSent = true;
+                console.log(`[Email] ✅ Gửi email thành công tới: ${emailTarget}`);
+            } catch (err) {
+                emailError = err.message;
+                console.error(`[Email] ❌ Gửi email THẤT BẠI tới ${emailTarget}:`, err.message);
+            }
         }
 
         // ── Trả về thông tin học sinh ──────────────
         let message = 'Đã thêm học sinh thành công';
         if (isNewParent) {
             message = shouldSendEmail
-                ? `Đã tạo tài khoản phụ huynh và gửi email thông báo tới ${emailTarget}`
+                ? (emailSent
+                    ? `Đã tạo tài khoản phụ huynh và gửi email thông báo tới ${emailTarget}`
+                    : `Đã tạo tài khoản phụ huynh nhưng gửi email thất bại: ${emailError}`)
                 : 'Đã tạo tài khoản phụ huynh (không có email → dùng mật khẩu mặc định: 123456)';
         } else if (shouldSendEmail) {
-            message = `Đã cập nhật email phụ huynh và gửi thông báo tới ${emailTarget}`;
+            message = emailSent
+                ? `Đã cập nhật email phụ huynh và gửi thông báo tới ${emailTarget}`
+                : `Đã cập nhật email nhưng gửi email thất bại: ${emailError}`;
         }
 
         const responseData = {
@@ -166,7 +179,8 @@ const create = async (req, res) => {
             message,
             parentInfo: parentUser ? {
                 isNew: isNewParent,
-                emailSentTo: shouldSendEmail ? emailTarget : null,
+                emailSentTo: emailSent ? emailTarget : null,
+                emailError: emailError || null,
             } : null,
         };
 

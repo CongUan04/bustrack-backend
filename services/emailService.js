@@ -1,32 +1,17 @@
 // services/emailService.js
 // Quản lý toàn bộ logic gửi email qua Nodemailer + Gmail
 
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
-// ── Tạo transporter (singleton, tái dùng trong suốt vòng đời app) ──────────
-let transporter = null;
+// Khởi tạo Resend client với API key của bạn
+// (Fallback về key bạn cung cấp nếu chưa cấu hình trong .env)
+const resendApiKey = process.env.RESEND_API_KEY || 're_azQMjoDF_BnjYX3LZywGSx9xCxrvebJvb';
+const resend = new Resend(resendApiKey);
 
-const getTransporter = () => {
-    if (transporter) return transporter;
+// Email mặc định của Resend (Dùng tạm khi chưa xác minh tên miền thật)
+const SENDER_EMAIL = 'BusTrack <onboarding@resend.dev>';
 
-    const user = process.env.GMAIL_USER?.trim();
-    const pass = process.env.GMAIL_APP_PASSWORD?.trim().replace(/\s/g, ''); // bỏ dấu cách trong App Password
-
-    if (!user || !pass) {
-        const missing = !user ? 'GMAIL_USER' : 'GMAIL_APP_PASSWORD';
-        throw new Error(`[Email] Thiếu biến môi trường: ${missing}. Vui lòng cấu hình trên Render Dashboard.`);
-    }
-
-    console.log(`[Email] 🔧 Khởi tạo transporter với tài khoản: ${user}`);
-
-    transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: { user, pass },
-    });
-
-    console.log('[Email] ✅ Nodemailer transporter đã sẵn sàng.');
-    return transporter;
-};
+console.log('[Email] ✅ Resend client đã sẵn sàng.');
 
 // ── Template HTML đẹp cho Welcome Email ──────────────────────────────────────
 const buildWelcomeEmailHTML = ({ studentName, username, password, loginUrl }) => `
@@ -234,21 +219,22 @@ const buildWelcomeEmailHTML = ({ studentName, username, password, loginUrl }) =>
  * @returns {Promise<void>}
  */
 const sendWelcomeEmail = async (parentEmail, loginInfo) => {
-    // getTransporter() sẽ throw nếu thiếu credentials — caller phải catch
-    const tp = getTransporter();
-
     const { studentName, username, password, loginUrl = process.env.APP_URL || 'http://localhost:5173' } = loginInfo;
 
-    const mailOptions = {
-        from: `"BusTrack — Nhà trường 🚌" <${process.env.GMAIL_USER}>`,
-        to: parentEmail,
-        subject: `[BusTrack] Tài khoản theo dõi xe buýt cho học sinh ${studentName}`,
-        html: buildWelcomeEmailHTML({ studentName, username, password, loginUrl }),
-    };
-
     try {
-        const info = await tp.sendMail(mailOptions);
-        console.log(`[Email] ✅ Đã gửi welcome email tới ${parentEmail} — messageId: ${info.messageId}`);
+        const { data, error } = await resend.emails.send({
+            from: SENDER_EMAIL,
+            to: parentEmail,
+            subject: `[BusTrack] Tài khoản theo dõi xe buýt cho học sinh ${studentName}`,
+            html: buildWelcomeEmailHTML({ studentName, username, password, loginUrl }),
+        });
+
+        if (error) {
+            console.error(`[Email] ❌ Gửi email tới ${parentEmail} thất bại (Resend API Error):`, error.message);
+            throw new Error(error.message);
+        }
+
+        console.log(`[Email] ✅ Đã gửi welcome email tới ${parentEmail} qua Resend — id: ${data?.id}`);
     } catch (err) {
         // Ghi log VÀ throw để caller biết gửi thất bại
         console.error(`[Email] ❌ Gửi email tới ${parentEmail} thất bại:`, err.message);
@@ -406,24 +392,22 @@ const buildOtpEmailHTML = ({ otp, loginUrl }) => `
  * @returns {Promise<boolean>} true nếu gửi thành công
  */
 const sendOtpEmail = async (toEmail, otp) => {
-    const tp = getTransporter();
-    if (!tp) {
-        console.warn('[Email] Transporter chưa sẵn sàng — không thể gửi OTP email.');
-        return false;
-    }
-
     const loginUrl = process.env.APP_URL || 'http://localhost:5173';
 
-    const mailOptions = {
-        from: `"BusTrack 🚌" <${process.env.GMAIL_USER}>`,
-        to: toEmail,
-        subject: `[BusTrack] Mã xác nhận OTP: ${otp}`,
-        html: buildOtpEmailHTML({ otp, loginUrl }),
-    };
-
     try {
-        const info = await tp.sendMail(mailOptions);
-        console.log(`[Email] Đã gửi OTP email tới ${toEmail} — messageId: ${info.messageId}`);
+        const { data, error } = await resend.emails.send({
+            from: SENDER_EMAIL,
+            to: toEmail,
+            subject: `[BusTrack] Mã xác nhận OTP: ${otp}`,
+            html: buildOtpEmailHTML({ otp, loginUrl }),
+        });
+
+        if (error) {
+            console.error(`[Email] Gửi OTP email tới ${toEmail} thất bại (Resend):`, error.message);
+            return false;
+        }
+
+        console.log(`[Email] Đã gửi OTP email tới ${toEmail} qua Resend — id: ${data?.id}`);
         return true;
     } catch (err) {
         console.error(`[Email] Gửi OTP email tới ${toEmail} thất bại:`, err.message);

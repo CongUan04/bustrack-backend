@@ -9,13 +9,15 @@ let transporter = null;
 const getTransporter = () => {
     if (transporter) return transporter;
 
-    const user = process.env.GMAIL_USER;
-    const pass = process.env.GMAIL_APP_PASSWORD;
+    const user = process.env.GMAIL_USER?.trim();
+    const pass = process.env.GMAIL_APP_PASSWORD?.trim().replace(/\s/g, ''); // bỏ dấu cách trong App Password
 
     if (!user || !pass) {
-        console.warn('[Email] ⚠️  GMAIL_USER hoặc GMAIL_APP_PASSWORD chưa được đặt trong .env — Email sẽ không hoạt động.');
-        return null;
+        const missing = !user ? 'GMAIL_USER' : 'GMAIL_APP_PASSWORD';
+        throw new Error(`[Email] Thiếu biến môi trường: ${missing}. Vui lòng cấu hình trên Render Dashboard.`);
     }
+
+    console.log(`[Email] 🔧 Khởi tạo transporter với tài khoản: ${user}`);
 
     transporter = nodemailer.createTransport({
         service: 'gmail',
@@ -232,8 +234,8 @@ const buildWelcomeEmailHTML = ({ studentName, username, password, loginUrl }) =>
  * @returns {Promise<void>}
  */
 const sendWelcomeEmail = async (parentEmail, loginInfo) => {
+    // getTransporter() sẽ throw nếu thiếu credentials — caller phải catch
     const tp = getTransporter();
-    if (!tp) return; // Bỏ qua nếu chưa cấu hình — KHÔNG crash app
 
     const { studentName, username, password, loginUrl = process.env.APP_URL || 'http://localhost:5173' } = loginInfo;
 

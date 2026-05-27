@@ -1,5 +1,6 @@
 const express = require('express');
 const http = require('http');
+const path = require('path');
 const { Server } = require('socket.io');
 const dotenv = require('dotenv');
 const cors = require('cors');
@@ -29,6 +30,9 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// ── Static Files ──────────────────────────────────────────────
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // ── Routes ────────────────────────────────────────────────────
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/dashboard', require('./routes/dashboardRoutes'));
@@ -39,6 +43,7 @@ app.use('/api/buses', require('./routes/busRoutes'));
 app.use('/api/routes', require('./routes/routeRoutes'));
 app.use('/api/telegram', require('./routes/telegramRoutes'));
 app.use('/api/users', require('./routes/userRoutes'));
+app.use('/api/upload', require('./routes/uploadRoutes'));
 
 // Health check
 app.get('/', (req, res) => {
@@ -98,7 +103,7 @@ cron.schedule('1 0 * * *', async () => {
     try {
         console.log('[Cron] Bắt đầu reset trạng thái điểm danh ngày mới...');
         
-        // Reset toàn bộ học sinh về chưa lên xe và xoá lý do vắng mặt
+        // 1. Reset toàn bộ học sinh về chưa lên xe và xoá lý do vắng mặt
         const result = await Student.updateMany(
             {}, 
             { 
@@ -108,8 +113,15 @@ cron.schedule('1 0 * * *', async () => {
                 } 
             }
         );
-        
         console.log(`[Cron] ✅ Đã reset trạng thái cho ${result.modifiedCount} học sinh về Not_Boarded.`);
+
+        // 2. Chuyển trạng thái sang Absent cho những học sinh đã báo vắng mặt vào ngày hôm nay
+        const today = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' }).substring(0, 10);
+        const absentResult = await Student.updateMany(
+            { 'absences.date': today },
+            { $set: { currentStatus: 'Absent' } }
+        );
+        console.log(`[Cron] ℹ️ Cập nhật ${absentResult.modifiedCount} học sinh thành Absent vì đã báo nghỉ hôm nay (${today}).`);
         
         // Phát sự kiện qua socket.io để cập nhật Real-time trên giao diện Admin/Driver
         io.emit('daily_status_reset', { message: 'Trạng thái điểm danh đã được làm mới cho ngày mới' });

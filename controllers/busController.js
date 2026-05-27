@@ -80,6 +80,30 @@ const updateLocation = async (req, res) => {
 
         console.log(`[GPS ✅] Cập nhật tọa độ thành công cho xe: ${bus.licensePlate} (${lat}, ${lng})`);
 
+        // 1.2 Cảnh báo quá tốc độ (OVERSPEED)
+        const SPEED_LIMIT = 60; // Giới hạn 60 km/h
+        if (speed && speed > SPEED_LIMIT) {
+            const overspeedCacheKey = `overspeed_${bus._id.toString()}`;
+            const lastOverspeed = stopNotifications.get(overspeedCacheKey);
+            const NOW = Date.now();
+            
+            // Chống spam: 5 phút mới cảnh báo 1 lần
+            if (!lastOverspeed || NOW - lastOverspeed > 5 * 60 * 1000) {
+                stopNotifications.set(overspeedCacheKey, NOW);
+                const Alert = require('../models/Alert');
+                Alert.create({
+                    alert_type: 'OVERSPEED',
+                    message: `Xe ${bus.licensePlate} đang di chuyển ${speed} km/h (vượt giới hạn ${SPEED_LIMIT} km/h)`,
+                    severity: 'danger',
+                    bus_id: bus._id,
+                    meta: { speed, limit: SPEED_LIMIT, lat, lng }
+                }).then(alertDoc => {
+                    const io = getIo();
+                    if (io) io.emit('new_alert', alertDoc);
+                }).catch(err => console.error('[GPS Overspeed] Lỗi tạo Alert:', err));
+            }
+        }
+
         // 1.5 GPS Proximity Logic (Giai đoạn 2) - Thông báo sắp đến trạm
         if (bus.route_id && bus.route_id.stops && bus.route_id.stops.length > 0) {
             const NOW = Date.now();
@@ -100,7 +124,7 @@ const updateLocation = async (req, res) => {
                         const Alert = require('../models/Alert');
                         const adminMsg = `Xe ${bus.licensePlate} đang tiến đến trạm ${stop.stopName} (cách < 1km)`;
                         Alert.create({
-                            type: 'Info',
+                            alert_type: 'TELEGRAM_SENT',
                             message: adminMsg,
                             severity: 'info',
                             bus_id: bus._id

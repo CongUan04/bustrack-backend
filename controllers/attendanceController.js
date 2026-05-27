@@ -155,6 +155,22 @@ async function rfidScan(req, res) {
             });
         }
 
+        // 2.5 Kiểm tra WRONG_RFID (Quẹt thẻ không đúng tuyến)
+        if (student.route_id && bus.route_id && student.route_id.toString() !== bus.route_id._id.toString()) {
+            const Alert = require('../models/Alert');
+            const wrongRfidMsg = `Học sinh ${student.fullName} quẹt thẻ trên xe ${bus.licensePlate} không thuộc tuyến đường của mình!`;
+            Alert.create({
+                alert_type: 'WRONG_RFID',
+                message: wrongRfidMsg,
+                severity: 'warning',
+                bus_id: bus._id,
+                student_id: student._id
+            }).then(alertDoc => {
+                const io = getIo();
+                if (io) io.emit('new_alert', alertDoc);
+            }).catch(err => console.error('[RFID Alert] Lỗi tạo cảnh báo WRONG_RFID:', err));
+        }
+
         // 3. Xác định hành động: toggle Boarding ↔ Dropping
         // Not_Boarded hoặc Dropped_Off  → Boarding
         // On_Bus                        → Dropping
@@ -210,6 +226,18 @@ async function rfidScan(req, res) {
                 isAbnormal = true;
                 abnormalReason = `Xuống sai điểm (Cách điểm hợp lệ gần nhất ~${(minDist).toFixed(1)}km)`;
                 alertMessage = `🚨 *CẢNH BÁO KHẨN CẤP*\n\nHọc sinh *${student.fullName}* vừa quẹt thẻ XUỐNG XE tại vị trí BẤT THƯỜNG (không khớp với bất kỳ điểm dừng nào trong lộ trình).\n\n📞 Phụ huynh vui lòng liên hệ nhà trường hoặc tài xế ngay lập tức!`;
+                
+                const Alert = require('../models/Alert');
+                Alert.create({
+                    alert_type: 'ABNORMAL_SCAN',
+                    message: `Học sinh ${student.fullName} xuống xe tại vị trí bất thường (${(minDist).toFixed(1)}km so với điểm dừng gần nhất).`,
+                    severity: 'warning',
+                    bus_id: bus._id,
+                    student_id: student._id
+                }).then(alertDoc => {
+                    const io = getIo();
+                    if (io) io.emit('new_alert', alertDoc);
+                }).catch(err => console.error('[RFID Alert] Lỗi tạo cảnh báo ABNORMAL_SCAN:', err));
             }
         }
 

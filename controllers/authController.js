@@ -21,6 +21,7 @@ const userResponse = (user, token) => ({
     phone: user.phone,
     isEmailSet: user.isEmailSet,
     telegram_chat_id: user.telegram_chat_id,
+    avatar: user.avatar,
     token,
 });
 
@@ -94,10 +95,13 @@ const updateProfile = async (req, res) => {
         const user = await User.findById(req.user.id).select('+password');
         if (!user) return res.status(404).json({ success: false, message: 'Không tìm thấy tài khoản' });
 
-        const { fullName, email, currentPassword, newPassword } = req.body;
+        const { fullName, email, currentPassword, newPassword, avatar } = req.body;
 
         // ── Cập nhật họ tên ────────────────────────────────────
         if (fullName) user.fullName = fullName.trim();
+
+        // ── Cập nhật avatar ────────────────────────────────────
+        if (avatar !== undefined) user.avatar = avatar;
 
         // ── Cập nhật email ────────────────────────────────────
         if (email && email.trim()) {

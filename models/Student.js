@@ -80,6 +80,13 @@ const studentSchema = new mongoose.Schema(
             type: String,
             default: null,
         },
+        absences: [
+            {
+                date: { type: String, required: true }, // Format: YYYY-MM-DD
+                reason: { type: String },
+                timestamp: { type: Date, default: Date.now }
+            }
+        ],
     },
     { timestamps: true }
 );

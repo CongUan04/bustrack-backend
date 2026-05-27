@@ -4,6 +4,8 @@ const socketHelper = require('../socket');
 const getIo = () => socketHelper.getIo();
 const Route = require('../models/Route');
 const { sendWelcomeEmail } = require('../services/emailService');
+const Alert = require('../models/Alert');
+const { sendMessageToParent } = require('../services/telegramService');
 
 // ── GET /api/students ─────────────────────────────────────────
 const getAll = async (req, res) => {
@@ -54,7 +56,7 @@ const generatePassword = (len = 10) => {
 // ── POST /api/students ────────────────────────────────────────
 const create = async (req, res) => {
     try {
-        const { studentCode, fullName, class: cls, rfid_uid, route_id, fatherPhone, motherPhone, parentName, parentEmail, classStartTime, assigned_stop } = req.body;
+        const { studentCode, fullName, class: cls, rfid_uid, route_id, fatherPhone, motherPhone, parentName, parentEmail, classStartTime, assigned_stop, studyDays, photoUrl } = req.body;
 
         // Kiểm tra trùng mã HS / RFID
         if (await Student.findOne({ studentCode: studentCode?.trim().toUpperCase() }))
@@ -136,7 +138,7 @@ const create = async (req, res) => {
         const student = await Student.create({
             studentCode, fullName, class: cls, rfid_uid,
             parent_id: parentUser ? parentUser._id : undefined,
-            route_id, fatherPhone, motherPhone, classStartTime, assigned_stop
+            route_id, fatherPhone, motherPhone, classStartTime, assigned_stop, studyDays, photoUrl
         });
 
         // ── Gửi Welcome Email (blocking - await để đảm bảo gửi xong trước khi response) ──
@@ -193,7 +195,7 @@ const create = async (req, res) => {
 // ── PUT /api/students/:id ─────────────────────────────────────
 const update = async (req, res) => {
     try {
-        const { studentCode, fullName, class: cls, rfid_uid, parent_id, route_id, isActive, fatherPhone, motherPhone, classStartTime, assigned_stop } = req.body;
+        const { studentCode, fullName, class: cls, rfid_uid, parent_id, route_id, isActive, fatherPhone, motherPhone, classStartTime, assigned_stop, studyDays, photoUrl } = req.body;
 
         // Kiểm tra RFID trùng với HS khác
         if (rfid_uid) {
@@ -216,6 +218,8 @@ const update = async (req, res) => {
         if (motherPhone !== undefined) student.motherPhone = motherPhone;
         if (classStartTime !== undefined) student.classStartTime = classStartTime;
         if (assigned_stop !== undefined) student.assigned_stop = assigned_stop;
+        if (studyDays !== undefined) student.studyDays = studyDays;
+        if (photoUrl !== undefined) student.photoUrl = photoUrl;
 
         await student.save(); // pre('validate') sẽ chạy ở đây
 
@@ -257,28 +261,56 @@ const getMyChildren = async (req, res) => {
 // ── PUT /api/students/:id/absent ──────────────────────────────
 const markAbsent = async (req, res) => {
     try {
-        const { reason } = req.body; // lý do vắng mặt (tuỳ chọn)
-        const student = await Student.findById(req.params.id);
+        const { reason, date } = req.body; // lý do vắng mặt và ngày vắng mặt
+        const student = await Student.findById(req.params.id).populate('parent_id');
         if (!student) return res.status(404).json({ success: false, message: 'Không tìm thấy học sinh' });
 
-        // Cập nhật trạng thái và lý do
-        student.currentStatus = 'Absent';
-        student.absenceReason = reason || null;
+        // Format ngày muốn vắng mặt, mặc định là hôm nay
+        const targetDate = date || new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' }).substring(0, 10);
+        
+        // Cập nhật vào mảng lịch sử báo nghỉ
+        student.absences.push({ date: targetDate, reason: reason || 'Gia đình xin phép' });
+
+        // Nếu ngày báo vắng là hôm nay, cập nhật luôn trạng thái hiện tại
+        const today = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' }).substring(0, 10);
+        if (targetDate === today) {
+            student.currentStatus = 'Absent';
+            student.absenceReason = reason || null;
+        }
+
         await student.save();
         await student.populate('route_id', 'routeName stops');
 
-        // Phát sự kiện realtime cho Driver
+        // Tạo cảnh báo "Lịch sử báo nghỉ"
+        const alertMsg = `Học sinh ${student.fullName} được phụ huynh báo vắng ngày ${targetDate.split('-').reverse().join('/')}. Lý do: ${reason || 'Không có'}`;
+        const newAlert = await Alert.create({
+            student_id: student._id,
+            alert_type: 'ABSENCE_LOG',
+            severity: 'info',
+            message: alertMsg,
+            isResolved: true, // Tự đánh dấu đã xử lý để không hiện số đỏ làm phiền Admin
+        });
+
+        // Phát sự kiện realtime
         const io = getIo();
         if (io) {
-            io.emit('student_status_update', {
-                studentId: student._id,
-                status: 'Absent',
-                studentName: student.fullName,
-                reason: reason || null,
-            });
+            io.emit('new_alert', newAlert);
+            if (targetDate === today) {
+                io.emit('student_status_update', {
+                    studentId: student._id,
+                    status: 'Absent',
+                    studentName: student.fullName,
+                    reason: reason || null,
+                });
+            }
         }
 
-        return res.json({ success: true, message: `Đã báo vắng mặt cho học sinh ${student.fullName}`, data: student });
+        // Gửi Telegram cho phụ huynh
+        if (student.parent_id?.telegram_chat_id) {
+            await sendMessageToParent(student.parent_id.telegram_chat_id, `[Xác nhận] ${alertMsg}`);
+        }
+
+        return res.json({ success: true, message: `Đã báo vắng mặt ngày ${targetDate.split('-').reverse().join('/')} cho học sinh ${student.fullName}`, data: student });
     } catch (err) {
         return res.status(500).json({ success: false, message: err.message });
     }

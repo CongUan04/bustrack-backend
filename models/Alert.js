@@ -23,6 +23,7 @@ const alertSchema = new mongoose.Schema(
                 'WRONG_RFID',         // Quẹt thẻ không đúng tuyến
                 'ABNORMAL_SCAN',      // Quẹt thẻ bất thường
                 'TELEGRAM_SENT',      // Đã gửi thông báo Telegram
+                'ABSENCE_LOG',        // Lịch sử báo nghỉ
                 'OTHER',
             ],
             required: true,

@@ -1,4 +1,5 @@
 const Alert = require('../models/Alert');
+const Student = require('../models/Student');
 const socketHelper = require('../socket');
 
 const getIo = () => socketHelper.getIo();
@@ -10,6 +11,11 @@ const getAll = async (req, res) => {
         const filter = {};
         if (severity) filter.severity = severity;
         if (isResolved !== undefined) filter.isResolved = isResolved === 'true';
+
+        if (req.user.role === 'Parent') {
+            const children = await Student.find({ parent_id: req.user.id || req.user._id }).select('_id');
+            filter.student_id = { $in: children.map(c => c._id) };
+        }
 
         const alerts = await Alert.find(filter)
             .populate('bus_id', 'licensePlate')

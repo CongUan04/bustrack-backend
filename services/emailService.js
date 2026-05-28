@@ -1,20 +1,57 @@
 // services/emailService.js
-// Quản lý toàn bộ logic gửi email qua Nodemailer + Gmail
+// Quản lý toàn bộ logic gửi email qua Nodemailer + Gmail hoặc Brevo
 
 const axios = require('axios');
+const nodemailer = require('nodemailer');
 
-// Khởi tạo Brevo API Client (Lấy từ biến môi trường Render)
 const BREVO_API_KEY = process.env.BREVO_API_KEY;
-
-if (!BREVO_API_KEY) {
-  console.warn('[Email] ⚠️  Chưa cấu hình BREVO_API_KEY, chức năng gửi email có thể không hoạt động.');
-}
-
-// Bắt buộc SENDER_EMAIL phải là email bạn đã dùng để đăng ký tài khoản Brevo
-// Hoặc email bạn đã thêm và xác minh trong mục Senders của Brevo.
 const SENDER_EMAIL = process.env.GMAIL_USER || 'ngaongao0044@gmail.com';
 
-console.log('[Email] ✅ Brevo REST API client đã sẵn sàng.');
+if (BREVO_API_KEY) {
+  console.log('[Email] ✅ Brevo REST API client đã cấu hình.');
+} else if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
+  console.log('[Email] ⚠️ Chưa cấu hình BREVO_API_KEY, tự động chuyển sang dùng Nodemailer (Gmail SMTP).');
+} else {
+  console.warn('[Email] ❌ Cảnh báo: Không có BREVO_API_KEY cũng như GMAIL_USER/GMAIL_APP_PASSWORD, email sẽ không hoạt động!');
+}
+
+const sendEmailLogic = async ({ to, subject, htmlContent }) => {
+  if (BREVO_API_KEY) {
+    const payload = {
+      sender: { name: "BusTrack — Nhà trường 🚌", email: SENDER_EMAIL },
+      to: [{ email: to }],
+      subject: subject,
+      htmlContent: htmlContent
+    };
+    const response = await axios.post('https://api.brevo.com/v3/smtp/email', payload, {
+      headers: {
+        'accept': 'application/json',
+        'api-key': BREVO_API_KEY,
+        'content-type': 'application/json'
+      }
+    });
+    console.log(`[Email] Đã gửi email tới ${to} qua Brevo — messageId: ${response.data.messageId}`);
+    return true;
+  } else if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.GMAIL_USER,
+        pass: process.env.GMAIL_APP_PASSWORD.replace(/\s+/g, '') // remove spaces
+      }
+    });
+    const info = await transporter.sendMail({
+      from: `"BusTrack — Nhà trường 🚌" <${process.env.GMAIL_USER}>`,
+      to: to,
+      subject: subject,
+      html: htmlContent
+    });
+    console.log(`[Email] Đã gửi email tới ${to} qua Nodemailer (Gmail) — messageId: ${info.messageId}`);
+    return true;
+  } else {
+    throw new Error('Chưa cấu hình API Key của Brevo hoặc tài khoản Gmail.');
+  }
+};
 
 // ── Template HTML đẹp cho Welcome Email ──────────────────────────────────────
 const buildWelcomeEmailHTML = ({ studentName, username, password, loginUrl }) => `
@@ -183,7 +220,7 @@ const buildWelcomeEmailHTML = ({ studentName, username, password, loginUrl }) =>
         </div>
         <div class="info-row">
           <span class="info-label">👤 Tên đăng nhập</span>
-          <span class="info-value">${email}</span>
+          <span class="info-value">${username}</span>
         </div>
         <div class="info-row">
           <span class="info-label">🔑 Mật khẩu</span>
@@ -225,22 +262,11 @@ const sendWelcomeEmail = async (parentEmail, loginInfo) => {
   const { studentName, username, password, loginUrl = process.env.APP_URL || 'http://localhost:5173' } = loginInfo;
 
   try {
-    const payload = {
-      sender: { name: "BusTrack — Nhà trường 🚌", email: SENDER_EMAIL },
-      to: [{ email: parentEmail }],
+    await sendEmailLogic({
+      to: parentEmail,
       subject: `[BusTrack] Tài khoản theo dõi xe buýt cho học sinh ${studentName}`,
       htmlContent: buildWelcomeEmailHTML({ studentName, username, password, loginUrl })
-    };
-
-    const response = await axios.post('https://api.brevo.com/v3/smtp/email', payload, {
-      headers: {
-        'accept': 'application/json',
-        'api-key': BREVO_API_KEY,
-        'content-type': 'application/json'
-      }
     });
-
-    console.log(`[Email] Đã gửi welcome email tới ${parentEmail} qua Brevo — messageId: ${response.data.messageId}`);
   } catch (err) {
     const errorMsg = err.response ? JSON.stringify(err.response.data) : err.message;
     console.error(`[Email] Gửi email tới ${parentEmail} thất bại:`, errorMsg);
@@ -401,22 +427,11 @@ const sendOtpEmail = async (toEmail, otp) => {
   const loginUrl = process.env.APP_URL || 'http://localhost:5173';
 
   try {
-    const payload = {
-      sender: { name: "BusTrack 🚌", email: SENDER_EMAIL },
-      to: [{ email: toEmail }],
+    await sendEmailLogic({
+      to: toEmail,
       subject: `[BusTrack] Mã xác nhận OTP: ${otp}`,
       htmlContent: buildOtpEmailHTML({ otp, loginUrl })
-    };
-
-    const response = await axios.post('https://api.brevo.com/v3/smtp/email', payload, {
-      headers: {
-        'accept': 'application/json',
-        'api-key': BREVO_API_KEY,
-        'content-type': 'application/json'
-      }
     });
-
-    console.log(`[Email] Đã gửi OTP email tới ${toEmail} qua Brevo — messageId: ${response.data.messageId}`);
     return true;
   } catch (err) {
     const errorMsg = err.response ? JSON.stringify(err.response.data) : err.message;

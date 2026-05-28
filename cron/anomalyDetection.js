@@ -101,6 +101,7 @@ const initAnomalyDetectionJob = () => {
                     await sendMessageToParent(student.parent_id.telegramChatId, telegramMsg);
                 }
             }
+        }
         } catch (error) {
             console.error('[Anomaly Detection] ❌ Lỗi khi chạy cron job:', error.message);
         }

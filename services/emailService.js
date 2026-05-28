@@ -7,7 +7,7 @@ const axios = require('axios');
 const BREVO_API_KEY = process.env.BREVO_API_KEY;
 
 if (!BREVO_API_KEY) {
-    console.warn('[Email] ⚠️  Chưa cấu hình BREVO_API_KEY, chức năng gửi email có thể không hoạt động.');
+  console.warn('[Email] ⚠️  Chưa cấu hình BREVO_API_KEY, chức năng gửi email có thể không hoạt động.');
 }
 
 // Bắt buộc SENDER_EMAIL phải là email bạn đã dùng để đăng ký tài khoản Brevo
@@ -222,30 +222,30 @@ const buildWelcomeEmailHTML = ({ studentName, username, password, loginUrl }) =>
  * @returns {Promise<void>}
  */
 const sendWelcomeEmail = async (parentEmail, loginInfo) => {
-    const { studentName, username, password, loginUrl = process.env.APP_URL || 'http://localhost:5173' } = loginInfo;
+  const { studentName, username, password, loginUrl = process.env.APP_URL || 'http://localhost:5173' } = loginInfo;
 
-    try {
-        const payload = {
-            sender: { name: "BusTrack — Nhà trường 🚌", email: SENDER_EMAIL },
-            to: [{ email: parentEmail }],
-            subject: `[BusTrack] Tài khoản theo dõi xe buýt cho học sinh ${studentName}`,
-            htmlContent: buildWelcomeEmailHTML({ studentName, username, password, loginUrl })
-        };
+  try {
+    const payload = {
+      sender: { name: "BusTrack — Nhà trường 🚌", email: SENDER_EMAIL },
+      to: [{ email: parentEmail }],
+      subject: `[BusTrack] Tài khoản theo dõi xe buýt cho học sinh ${studentName}`,
+      htmlContent: buildWelcomeEmailHTML({ studentName, username, password, loginUrl })
+    };
 
-        const response = await axios.post('https://api.brevo.com/v3/smtp/email', payload, {
-            headers: {
-                'accept': 'application/json',
-                'api-key': BREVO_API_KEY,
-                'content-type': 'application/json'
-            }
-        });
+    const response = await axios.post('https://api.brevo.com/v3/smtp/email', payload, {
+      headers: {
+        'accept': 'application/json',
+        'api-key': BREVO_API_KEY,
+        'content-type': 'application/json'
+      }
+    });
 
-        console.log(`[Email] Đã gửi welcome email tới ${parentEmail} qua Brevo — messageId: ${response.data.messageId}`);
-    } catch (err) {
-        const errorMsg = err.response ? JSON.stringify(err.response.data) : err.message;
-        console.error(`[Email] Gửi email tới ${parentEmail} thất bại:`, errorMsg);
-        throw new Error(errorMsg);
-    }
+    console.log(`[Email] Đã gửi welcome email tới ${parentEmail} qua Brevo — messageId: ${response.data.messageId}`);
+  } catch (err) {
+    const errorMsg = err.response ? JSON.stringify(err.response.data) : err.message;
+    console.error(`[Email] Gửi email tới ${parentEmail} thất bại:`, errorMsg);
+    throw new Error(errorMsg);
+  }
 };
 
 // ── Template HTML đẹp cho OTP Email ─────────────────────────────────────────
@@ -398,31 +398,31 @@ const buildOtpEmailHTML = ({ otp, loginUrl }) => `
  * @returns {Promise<boolean>} true nếu gửi thành công
  */
 const sendOtpEmail = async (toEmail, otp) => {
-    const loginUrl = process.env.APP_URL || 'http://localhost:5173';
+  const loginUrl = process.env.APP_URL || 'http://localhost:5173';
 
-    try {
-        const payload = {
-            sender: { name: "BusTrack 🚌", email: SENDER_EMAIL },
-            to: [{ email: toEmail }],
-            subject: `[BusTrack] Mã xác nhận OTP: ${otp}`,
-            htmlContent: buildOtpEmailHTML({ otp, loginUrl })
-        };
+  try {
+    const payload = {
+      sender: { name: "BusTrack 🚌", email: SENDER_EMAIL },
+      to: [{ email: toEmail }],
+      subject: `[BusTrack] Mã xác nhận OTP: ${otp}`,
+      htmlContent: buildOtpEmailHTML({ otp, loginUrl })
+    };
 
-        const response = await axios.post('https://api.brevo.com/v3/smtp/email', payload, {
-            headers: {
-                'accept': 'application/json',
-                'api-key': BREVO_API_KEY,
-                'content-type': 'application/json'
-            }
-        });
+    const response = await axios.post('https://api.brevo.com/v3/smtp/email', payload, {
+      headers: {
+        'accept': 'application/json',
+        'api-key': BREVO_API_KEY,
+        'content-type': 'application/json'
+      }
+    });
 
-        console.log(`[Email] Đã gửi OTP email tới ${toEmail} qua Brevo — messageId: ${response.data.messageId}`);
-        return true;
-    } catch (err) {
-        const errorMsg = err.response ? JSON.stringify(err.response.data) : err.message;
-        console.error(`[Email] Gửi OTP email tới ${toEmail} thất bại:`, errorMsg);
-        return false;
-    }
+    console.log(`[Email] Đã gửi OTP email tới ${toEmail} qua Brevo — messageId: ${response.data.messageId}`);
+    return true;
+  } catch (err) {
+    const errorMsg = err.response ? JSON.stringify(err.response.data) : err.message;
+    console.error(`[Email] Gửi OTP email tới ${toEmail} thất bại:`, errorMsg);
+    return false;
+  }
 };
 
 module.exports = { sendWelcomeEmail, sendOtpEmail };

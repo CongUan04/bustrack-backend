@@ -106,18 +106,18 @@ const create = async (req, res) => {
                 });
                 isNewParent = true;
 
-                console.log(`[Student] ✅ Tạo tài khoản phụ huynh mới: ${parentPhone.trim()}, email: ${finalEmail}, isEmailSet: ${hasRealEmail}`);
+                console.log(`[Student] Tạo tài khoản phụ huynh mới: ${parentPhone.trim()}, email: ${finalEmail}, isEmailSet: ${hasRealEmail}`);
 
                 if (hasRealEmail) {
                     shouldSendEmail = true;
                     emailTarget = parentEmail.trim();
                     console.log(`[Student] 📧 Sẽ gửi welcome email tới: ${emailTarget}`);
                 } else {
-                    console.log(`[Student] ℹ️  Không có email thật → bỏ qua gửi email (dùng placeholder).`);
+                    console.log(`[Student] ℹKhông có email thật → bỏ qua gửi email (dùng placeholder).`);
                 }
             } else {
                 // ── Phụ huynh đã tồn tại → kiểm tra có cần cập nhật email không ──
-                console.log(`[Student] ℹ️  Phụ huynh đã tồn tại (phone: ${parentPhone.trim()}) → dùng lại tài khoản.`);
+                console.log(`[Student] ℹPhụ huynh đã tồn tại (phone: ${parentPhone.trim()}) → dùng lại tài khoản.`);
 
                 // Nếu admin cung cấp email thật VÀ tài khoản chưa có email thật → cập nhật
                 if (parentEmail && parentEmail.trim() && !parentUser.isEmailSet) {
@@ -144,20 +144,20 @@ const create = async (req, res) => {
         // ── Gửi Welcome Email (blocking - await để đảm bảo gửi xong trước khi response) ──
         let emailError = null;
         if (shouldSendEmail && emailTarget) {
-            console.log(`[Email] 🚀 Bắt đầu gửi email tới: ${emailTarget}`);
-            console.log(`[Email] GMAIL_USER: ${process.env.GMAIL_USER ? '✅' : '❌ THIẾU'}`);
-            console.log(`[Email] GMAIL_APP_PASSWORD: ${process.env.GMAIL_APP_PASSWORD ? '✅' : '❌ THIẾU'}`);
+            console.log(`[Email] Bắt đầu gửi email tới: ${emailTarget}`);
+            console.log(`[Email] GMAIL_USER: ${process.env.GMAIL_USER ? '' : ' THIẾU'}`);
+            console.log(`[Email] GMAIL_APP_PASSWORD: ${process.env.GMAIL_APP_PASSWORD ? '' : ' THIẾU'}`);
             try {
                 await sendWelcomeEmail(emailTarget, {
                     studentName: fullName,
-                    username: parentPhone.trim(),
+                    username: emailTarget,
                     password: rawPassword || '123456',
                 });
                 emailSent = true;
-                console.log(`[Email] ✅ Gửi email thành công tới: ${emailTarget}`);
+                console.log(`[Email] Gửi email thành công tới: ${emailTarget}`);
             } catch (err) {
                 emailError = err.message;
-                console.error(`[Email] ❌ Gửi email THẤT BẠI tới ${emailTarget}:`, err.message);
+                console.error(`[Email] Gửi email THẤT BẠI tới ${emailTarget}:`, err.message);
             }
         }
 
@@ -268,7 +268,7 @@ const markAbsent = async (req, res) => {
 
         // Format ngày muốn vắng mặt, mặc định là hôm nay
         const targetDate = date || new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' }).substring(0, 10);
-        
+
         // Cập nhật vào mảng lịch sử báo nghỉ
         student.absences.push({ date: targetDate, reason: reason || 'Gia đình xin phép' });
 

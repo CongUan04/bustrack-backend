@@ -95,13 +95,16 @@ const updateProfile = async (req, res) => {
         const user = await User.findById(req.user.id).select('+password');
         if (!user) return res.status(404).json({ success: false, message: 'Không tìm thấy tài khoản' });
 
-        const { fullName, email, currentPassword, newPassword, avatar } = req.body;
+        const { fullName, email, currentPassword, newPassword, avatar, phone } = req.body;
 
         // ── Cập nhật họ tên ────────────────────────────────────
         if (fullName) user.fullName = fullName.trim();
 
         // ── Cập nhật avatar ────────────────────────────────────
         if (avatar !== undefined) user.avatar = avatar;
+
+        // ── Cập nhật số điện thoại ─────────────────────────────
+        if (phone !== undefined) user.phone = phone.trim();
 
         // ── Cập nhật email ────────────────────────────────────
         if (email && email.trim()) {

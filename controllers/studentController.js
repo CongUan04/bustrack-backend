@@ -56,7 +56,7 @@ const generatePassword = (len = 10) => {
 // ── POST /api/students ────────────────────────────────────────
 const create = async (req, res) => {
     try {
-        const { studentCode, fullName, class: cls, rfid_uid, route_id, fatherPhone, motherPhone, parentName, parentEmail, classStartTime, assigned_stop, studyDays, photoUrl } = req.body;
+        const { studentCode, fullName, class: cls, rfid_uid, route_id, fatherPhone, motherPhone, parentName, parentEmail, classStartTime, classEndTime, assigned_stop, studyDays, photoUrl } = req.body;
 
         // Kiểm tra trùng mã HS / RFID
         if (await Student.findOne({ studentCode: studentCode?.trim().toUpperCase() }))
@@ -138,7 +138,7 @@ const create = async (req, res) => {
         const student = await Student.create({
             studentCode, fullName, class: cls, rfid_uid,
             parent_id: parentUser ? parentUser._id : undefined,
-            route_id, fatherPhone, motherPhone, classStartTime, assigned_stop, studyDays, photoUrl
+            route_id, fatherPhone, motherPhone, classStartTime, classEndTime, assigned_stop, studyDays, photoUrl
         });
 
         // ── Gửi Welcome Email (blocking - await để đảm bảo gửi xong trước khi response) ──
@@ -195,7 +195,7 @@ const create = async (req, res) => {
 // ── PUT /api/students/:id ─────────────────────────────────────
 const update = async (req, res) => {
     try {
-        const { studentCode, fullName, class: cls, rfid_uid, parent_id, route_id, isActive, fatherPhone, motherPhone, classStartTime, assigned_stop, studyDays, photoUrl } = req.body;
+        const { studentCode, fullName, class: cls, rfid_uid, parent_id, route_id, isActive, fatherPhone, motherPhone, classStartTime, classEndTime, assigned_stop, studyDays, photoUrl } = req.body;
 
         // Kiểm tra RFID trùng với HS khác
         if (rfid_uid) {
@@ -217,6 +217,7 @@ const update = async (req, res) => {
         if (fatherPhone !== undefined) student.fatherPhone = fatherPhone;
         if (motherPhone !== undefined) student.motherPhone = motherPhone;
         if (classStartTime !== undefined) student.classStartTime = classStartTime;
+        if (classEndTime !== undefined) student.classEndTime = classEndTime;
         if (assigned_stop !== undefined) student.assigned_stop = assigned_stop;
         if (studyDays !== undefined) student.studyDays = studyDays;
         if (photoUrl !== undefined) student.photoUrl = photoUrl;

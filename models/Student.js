@@ -57,6 +57,10 @@ const studentSchema = new mongoose.Schema(
             type: String,
             default: '07:30', // HH:mm
         },
+        classEndTime: {
+            type: String,
+            default: '16:30', // HH:mm
+        },
         photoUrl: {
             type: String,
             default: null,

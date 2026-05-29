@@ -188,7 +188,7 @@ async function rfidScan(req, res) {
         let alertMessage = null;
         let matchedStop = null;
 
-        if (action_type === 'Dropping' && bus.currentLat && bus.currentLng && bus.route_id) {
+        if (bus.currentLat && bus.currentLng && bus.route_id) {
             function getDist(lat1, lon1, lat2, lon2) {
                 const R = 6371;
                 const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -223,21 +223,26 @@ async function rfidScan(req, res) {
 
             // Nếu cách tất cả các điểm > 0.5km (500m)
             if (minDist > 0.5 && minDist !== 9999) {
-                isAbnormal = true;
-                abnormalReason = `Xuống sai điểm (Cách điểm hợp lệ gần nhất ~${(minDist).toFixed(1)}km)`;
-                alertMessage = `🚨 *CẢNH BÁO KHẨN CẤP*\n\nHọc sinh *${student.fullName}* vừa quẹt thẻ XUỐNG XE tại vị trí BẤT THƯỜNG (không khớp với bất kỳ điểm dừng nào trong lộ trình).\n\n📞 Phụ huynh vui lòng liên hệ nhà trường hoặc tài xế ngay lập tức!`;
-                
-                const Alert = require('../models/Alert');
-                Alert.create({
-                    alert_type: 'ABNORMAL_SCAN',
-                    message: `Học sinh ${student.fullName} xuống xe tại vị trí bất thường (${(minDist).toFixed(1)}km so với điểm dừng gần nhất).`,
-                    severity: 'warning',
-                    bus_id: bus._id,
-                    student_id: student._id
-                }).then(alertDoc => {
-                    const io = getIo();
-                    if (io) io.emit('new_alert', alertDoc);
-                }).catch(err => console.error('[RFID Alert] Lỗi tạo cảnh báo ABNORMAL_SCAN:', err));
+                if (action_type === 'Dropping') {
+                    isAbnormal = true;
+                    abnormalReason = `Xuống sai điểm (Cách điểm hợp lệ gần nhất ~${(minDist).toFixed(1)}km)`;
+                    alertMessage = `🚨 *CẢNH BÁO KHẨN CẤP*\n\nHọc sinh *${student.fullName}* vừa quẹt thẻ XUỐNG XE tại vị trí BẤT THƯỜNG (không khớp với bất kỳ điểm dừng nào trong lộ trình).\n\n📞 Phụ huynh vui lòng liên hệ nhà trường hoặc tài xế ngay lập tức!`;
+                    
+                    const Alert = require('../models/Alert');
+                    Alert.create({
+                        alert_type: 'ABNORMAL_SCAN',
+                        message: `Học sinh ${student.fullName} xuống xe tại vị trí bất thường (${(minDist).toFixed(1)}km so với điểm dừng gần nhất).`,
+                        severity: 'warning',
+                        bus_id: bus._id,
+                        student_id: student._id
+                    }).then(alertDoc => {
+                        const io = getIo();
+                        if (io) io.emit('new_alert', alertDoc);
+                    }).catch(err => console.error('[RFID Alert] Lỗi tạo cảnh báo ABNORMAL_SCAN:', err));
+                } else {
+                    // Nếu lên xe sai điểm thì ghi nhận vị trí không xác định, chưa cần báo động đỏ
+                    matchedStop = 'Điểm không xác định';
+                }
             }
         }
 
@@ -265,8 +270,8 @@ async function rfidScan(req, res) {
                     const scanTime = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
                     const actionText = action_type === 'Boarding' ? '🟢 *Lên xe*' : '🔴 *Xuống xe*';
                     let stopText = '';
-                    if (action_type === 'Dropping' && matchedStop) {
-                        stopText = `🛑 Điểm dừng: ${matchedStop}\n`;
+                    if (matchedStop) {
+                        stopText = `🛑 Điểm ${action_type === 'Boarding' ? 'đón' : 'xuống'}: ${matchedStop}\n`;
                     }
                     telegramMsg =
                         `🚌 *Thông báo điểm danh xe buýt*\n\n` +

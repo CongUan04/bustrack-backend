@@ -11,14 +11,7 @@ const initAnomalyDetectionJob = () => {
             // 1. Lấy thời gian hiện tại theo múi giờ VN (Asia/Ho_Chi_Minh)
             const now = new Date();
             
-            // Sử dụng Intl.DateTimeFormat để lấy chính xác giờ, phút, ngày theo timezone
-            const formatter = new Intl.DateTimeFormat('en-US', {
-                timeZone: 'Asia/Ho_Chi_Minh',
-                hour: 'numeric',
-                minute: 'numeric',
-                hour12: false,
-                weekday: 'numeric' // 1: Sun, 2: Mon, ..., 7: Sat (note: getDay() wants 0-6)
-            });
+
             
             // Parse cẩn thận để tránh lỗi format string trên các hệ điều hành khác nhau
             const vnDateStr = now.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' });

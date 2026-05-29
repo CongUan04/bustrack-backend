@@ -33,12 +33,11 @@ const initAnomalyDetectionJob = () => {
 
             // 2. Tìm các học sinh:
             // - Đang active
-            // - Có lịch học hôm nay (studyDays chứa currentDay)
             // - Vẫn còn ở trên xe (On_Bus)
-            // - Có classStartTime
+            // - Có classStartTime hoặc classEndTime
+            // LƯU Ý: Bỏ điều kiện studyDays: currentDay để đảm bảo học sinh kẹt trên xe cuối tuần vẫn bị phát hiện
             const students = await Student.find({
                 isActive: true,
-                studyDays: currentDay,
                 currentStatus: 'On_Bus',
                 $or: [
                     { classStartTime: { $ne: null, $ne: '' } },
@@ -72,9 +71,11 @@ const initAnomalyDetectionJob = () => {
                                            currentTotalMins >= classStartMins + 5 && 
                                            currentTotalMins < safeClassEndMins;
                 
-                // Kiểm tra buổi chiều: Nếu thời gian hiện tại lớn hơn (giờ tan học + 15 phút) cho đến hết ngày
+                // Kiểm tra buổi chiều & qua đêm: Nếu thời gian hiện tại lớn hơn (giờ tan học + 15 phút) 
+                // HOẶC là ban đêm/sáng sớm trước giờ đi học (trước giờ vào lớp 60 phút)
                 const isAfternoonForgotten = safeClassEndMins > 0 && 
-                                             currentTotalMins >= safeClassEndMins + 15;
+                                             (currentTotalMins >= safeClassEndMins + 15 || 
+                                              (classStartMins > 0 && currentTotalMins < classStartMins - 60));
 
                 if (isMorningForgotten || isAfternoonForgotten) {
                     const tripType = isMorningForgotten ? 'Morning' : 'Afternoon';

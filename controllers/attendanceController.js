@@ -274,7 +274,7 @@ async function rfidScan(req, res) {
                 const now = new Date();
                 const vnTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
                 const currentMins = vnTime.getHours() * 60 + vnTime.getMinutes();
-                
+
                 let startMins = 0;
                 let endMins = 0;
                 if (student.classStartTime) {
@@ -292,7 +292,7 @@ async function rfidScan(req, res) {
                     isAbnormal = true;
                     abnormalReason = `Lên xe giữa giờ học (Có thể trốn tiết / về sớm)`;
                     alertMessage = `🚨 *CẢNH BÁO BẤT THƯỜNG*\n\nHọc sinh *${student.fullName}* vừa quẹt thẻ LÊN XE trong thời gian đang diễn ra giờ học chính khóa!\n\n📞 Phụ huynh và Giáo viên chủ nhiệm vui lòng xác minh xem em có đang trốn tiết hoặc về sớm không!`;
-                    
+
                     const Alert = require('../models/Alert');
                     Alert.create({
                         alert_type: 'ABNORMAL_SCAN',

@@ -85,13 +85,27 @@ const initAnomalyDetectionJob = () => {
                     // Nếu đã cảnh báo trong vòng 5 phút qua thì bỏ qua để không spam liên tục
                     if (existingAlert) continue;
 
+                    // Lấy thời gian bắt đầu của "ngày hôm nay" để đếm số lần đã cảnh báo trong ngày
+                    const startOfDay = new Date();
+                    startOfDay.setHours(0, 0, 0, 0);
+                    
+                    const totalAlertsToday = await Alert.countDocuments({
+                        student_id: student._id,
+                        alert_type: 'STUDENT_FORGOTTEN',
+                        'meta.tripType': tripType,
+                        timestamp: { $gte: startOfDay }
+                    });
+                    
+                    const alertCount = totalAlertsToday + 1;
+                    const alertTitle = alertCount > 1 ? `🚨 *CẢNH BÁO KHẨN CẤP (LẦN ${alertCount})* 🚨` : `🚨 *CẢNH BÁO KHẨN CẤP*`;
+
                     const timeLabel = isMorningForgotten ? 'Giờ vào lớp (Đã đến trường)' : 'Giờ tan học';
                     const timeValue = isMorningForgotten ? student.classStartTime : student.classEndTime;
                     const contextMsg = isMorningForgotten 
                         ? `Xe đã đến trường và quá giờ vào lớp 5 phút nhưng em vẫn chưa quẹt thẻ xuống xe.` 
                         : `Đã quá thời gian tan học (5 phút) nhưng em vẫn chưa quẹt thẻ xuống trạm.`;
 
-                    console.warn(`[Anomaly Detection] 🚨 CẢNH BÁO: Học sinh ${student.fullName} (Lớp ${student.class}) bị bỏ quên trên xe! ${timeLabel}: ${timeValue}`);
+                    console.warn(`[Anomaly Detection] ${alertTitle}: Học sinh ${student.fullName} (Lớp ${student.class}) bị bỏ quên trên xe! ${timeLabel}: ${timeValue}`);
 
                     // Tạo Alert mới
                     const newAlert = new Alert({
@@ -99,13 +113,14 @@ const initAnomalyDetectionJob = () => {
                         bus_id: student.route_id || null, // Nếu có liên kết với xe/tuyến thì lấy route_id (hoặc bus)
                         alert_type: 'STUDENT_FORGOTTEN',
                         severity: 'danger',
-                        message: `Học sinh ${student.fullName} (Lớp ${student.class}) có khả năng bị bỏ quên trên xe. ${contextMsg} Vui lòng kiểm tra ngay!`,
+                        message: `[Lần ${alertCount}] Học sinh ${student.fullName} (Lớp ${student.class}) có khả năng bị bỏ quên trên xe. ${contextMsg} Vui lòng kiểm tra ngay!`,
                         meta: { 
                             classStartTime: student.classStartTime,
                             classEndTime: student.classEndTime,
                             timeDetected: currentTimeStr,
                             lastStatus: student.currentStatus,
-                            tripType: tripType
+                            tripType: tripType,
+                            alertCount: alertCount
                         }
                     });
 
@@ -124,7 +139,7 @@ const initAnomalyDetectionJob = () => {
                     const statusText = 'Vẫn đang trên xe (Khả năng bị bỏ quên)';
                         
                     const telegramMsg = 
-                        `🚨 *CẢNH BÁO KHẨN CẤP*\n\n` +
+                        `${alertTitle}\n\n` +
                         `Hệ thống phát hiện em *${student.fullName}* có khả năng bị bỏ quên trên xe.\n` +
                         `⏰ ${timeLabel}: ${timeValue}\n` +
                         `📍 Chi tiết: ${contextMsg}\n` +

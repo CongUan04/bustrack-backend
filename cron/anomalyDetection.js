@@ -73,37 +73,41 @@ const initAnomalyDetectionJob = () => {
                 if (isMorningForgotten || isAfternoonForgotten) {
                     const tripType = isMorningForgotten ? 'Morning' : 'Afternoon';
 
-                    // Kiểm tra xem hôm nay đã tạo Alert STUDENT_FORGOTTEN cho học sinh này THEO BUỔI (Morning/Afternoon) chưa
+                    // KIỂM TRA CHỐNG SPAM (Dành cho báo cáo đồ án, cho phép test lại sau 60 phút thay vì bị chặn cả ngày)
+                    const sixtyMinsAgo = new Date(now.getTime() - 60 * 60 * 1000);
                     const existingAlert = await Alert.findOne({
                         student_id: student._id,
                         alert_type: 'STUDENT_FORGOTTEN',
                         'meta.tripType': tripType,
-                        timestamp: { $gte: startOfDay }
+                        timestamp: { $gte: sixtyMinsAgo }
                     });
 
-                    // Nếu đã cảnh báo trong buổi này rồi thì bỏ qua để không spam
+                    // Nếu đã cảnh báo trong vòng 60 phút qua thì bỏ qua để không spam liên tục
                     if (existingAlert) continue;
 
-                    const timeLabel = isMorningForgotten ? 'Giờ vào lớp' : 'Giờ tan học';
+                    const timeLabel = isMorningForgotten ? 'Giờ vào lớp (Đã đến trường)' : 'Giờ tan học';
                     const timeValue = isMorningForgotten ? student.classStartTime : student.classEndTime;
+                    const contextMsg = isMorningForgotten 
+                        ? `Xe đã đến trường và quá giờ vào lớp 5 phút nhưng em vẫn chưa quẹt thẻ xuống xe.` 
+                        : `Đã quá thời gian tan học dự kiến (15 phút) nhưng em vẫn chưa quẹt thẻ xuống trạm.`;
 
                     console.warn(`[Anomaly Detection] 🚨 CẢNH BÁO: Học sinh ${student.fullName} (Lớp ${student.class}) bị bỏ quên trên xe! ${timeLabel}: ${timeValue}`);
 
                     // Tạo Alert mới
                     const newAlert = new Alert({
-                    student_id: student._id,
-                    bus_id: student.route_id || null, // Nếu có liên kết với xe/tuyến thì lấy route_id (hoặc bus)
-                    alert_type: 'STUDENT_FORGOTTEN',
-                    severity: 'danger',
-                        message: `Học sinh ${student.fullName} (Lớp ${student.class}) có khả năng bị bỏ quên trên xe. ${timeLabel} là ${timeValue} nhưng hiện tại vẫn chưa xuống xe. Vui lòng kiểm tra ngay!`,
+                        student_id: student._id,
+                        bus_id: student.route_id || null, // Nếu có liên kết với xe/tuyến thì lấy route_id (hoặc bus)
+                        alert_type: 'STUDENT_FORGOTTEN',
+                        severity: 'danger',
+                        message: `Học sinh ${student.fullName} (Lớp ${student.class}) có khả năng bị bỏ quên trên xe. ${contextMsg} Vui lòng kiểm tra ngay!`,
                         meta: { 
-                        classStartTime: student.classStartTime,
-                        classEndTime: student.classEndTime,
-                        timeDetected: currentTimeStr,
-                        lastStatus: student.currentStatus,
-                        tripType: isMorningForgotten ? 'Morning' : 'Afternoon'
-                    }
-                });
+                            classStartTime: student.classStartTime,
+                            classEndTime: student.classEndTime,
+                            timeDetected: currentTimeStr,
+                            lastStatus: student.currentStatus,
+                            tripType: tripType
+                        }
+                    });
 
                 await newAlert.save();
 
@@ -117,13 +121,14 @@ const initAnomalyDetectionJob = () => {
 
                 // Gửi thông báo khẩn cấp qua Telegram cho Phụ huynh
                 if (student.parent_id && student.parent_id.telegram_chat_id) {
-                    const statusText = 'Vẫn đang trên xe (Có khả năng bị bỏ quên)';
+                    const statusText = 'Vẫn đang trên xe (Khả năng bị bỏ quên)';
                         
                     const telegramMsg = 
                         `🚨 *CẢNH BÁO KHẨN CẤP*\n\n` +
                         `Hệ thống phát hiện em *${student.fullName}* có khả năng bị bỏ quên trên xe.\n` +
                         `⏰ ${timeLabel}: ${timeValue}\n` +
-                        `📍 Trạng thái lúc này: *${statusText}*\n\n` +
+                        `📍 Chi tiết: ${contextMsg}\n` +
+                        `⚠️ Trạng thái: *${statusText}*\n\n` +
                         `Vui lòng liên hệ nhà trường hoặc tài xế ngay lập tức để xác minh!`;
                         
                     await sendMessageToParent(student.parent_id.telegram_chat_id, telegramMsg);
@@ -131,7 +136,7 @@ const initAnomalyDetectionJob = () => {
             }
         }
         } catch (error) {
-            console.error('[Anomaly Detection] ❌ Lỗi khi chạy cron job:', error.message);
+            console.error('[Anomaly Detection] Lỗi khi chạy cron job:', error.message);
         }
     }, {
         scheduled: true,

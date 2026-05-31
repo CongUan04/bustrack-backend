@@ -193,13 +193,13 @@ async function rfidScan(req, res) {
                 const R = 6371;
                 const dLat = (lat2 - lat1) * Math.PI / 180;
                 const dLon = (lon2 - lon1) * Math.PI / 180;
-                const a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
+                const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
                 return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
             }
 
             const { schoolPos, stops } = bus.route_id;
             let minDist = 9999;
-            
+
             // So sánh với điểm trường học
             if (schoolPos && schoolPos.lat && schoolPos.lng) {
                 const dist = getDist(bus.currentLat, bus.currentLng, schoolPos.lat, schoolPos.lng);
@@ -221,13 +221,18 @@ async function rfidScan(req, res) {
                 });
             }
 
-            // Nếu cách tất cả các điểm > 0.5km (500m)
-            if (minDist > 0.5 && minDist !== 9999) {
-                if (action_type === 'Dropping') {
+            // Xử lý các lỗi bất thường khi xuống xe (Dropping)
+            if (action_type === 'Dropping') {
+                const now = new Date();
+                const vnTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
+                const currentHours = vnTime.getHours();
+
+                // 1. Lỗi: Xuống xe giữa đường (cách xa tất cả điểm dừng > 0.5km)
+                if (minDist > 0.5 && minDist !== 9999) {
                     isAbnormal = true;
                     abnormalReason = `Xuống sai điểm (Cách điểm hợp lệ gần nhất ~${(minDist).toFixed(1)}km)`;
                     alertMessage = `🚨 *CẢNH BÁO KHẨN CẤP*\n\nHọc sinh *${student.fullName}* vừa quẹt thẻ XUỐNG XE tại vị trí BẤT THƯỜNG (không khớp với bất kỳ điểm dừng nào trong lộ trình).\n\n📞 Phụ huynh vui lòng liên hệ nhà trường hoặc tài xế ngay lập tức!`;
-                    
+
                     const Alert = require('../models/Alert');
                     Alert.create({
                         alert_type: 'ABNORMAL_SCAN',
@@ -239,8 +244,28 @@ async function rfidScan(req, res) {
                         const io = getIo();
                         if (io) io.emit('new_alert', alertDoc);
                     }).catch(err => console.error('[RFID Alert] Lỗi tạo cảnh báo ABNORMAL_SCAN:', err));
-                } else {
-                    // Nếu lên xe sai điểm thì ghi nhận vị trí không xác định, chưa cần báo động đỏ
+                }
+                // 2. Lỗi: Buổi chiều (sau 12h) xuống sai trạm đăng ký
+                else if (currentHours >= 12 && student.assigned_stop && matchedStop !== student.assigned_stop && matchedStop !== 'Trường học') {
+                    isAbnormal = true;
+                    abnormalReason = `Xuống sai trạm đăng ký (Trạm của HS: ${student.assigned_stop})`;
+                    alertMessage = `🚨 *CẢNH BÁO LƯU Ý*\n\nHọc sinh *${student.fullName}* vừa quẹt thẻ XUỐNG XE tại trạm *${matchedStop}*.\n⚠️ Tuy nhiên, trạm đăng ký đón/trả của em là *${student.assigned_stop}*.\n\n📞 Phụ huynh vui lòng xác nhận xem học sinh có xin xuống nhầm trạm không!`;
+
+                    const Alert = require('../models/Alert');
+                    Alert.create({
+                        alert_type: 'ABNORMAL_SCAN',
+                        message: `Học sinh ${student.fullName} xuống sai trạm đăng ký (Xuống tại: ${matchedStop} | Đăng ký: ${student.assigned_stop}).`,
+                        severity: 'warning',
+                        bus_id: bus._id,
+                        student_id: student._id
+                    }).then(alertDoc => {
+                        const io = getIo();
+                        if (io) io.emit('new_alert', alertDoc);
+                    }).catch(err => console.error('[RFID Alert] Lỗi tạo cảnh báo ABNORMAL_SCAN:', err));
+                }
+            } else {
+                // Nếu LÊN XE sai điểm thì ghi nhận vị trí không xác định, chưa cần báo động đỏ
+                if (minDist > 0.5 && minDist !== 9999) {
                     matchedStop = 'Điểm không xác định';
                 }
             }

@@ -230,6 +230,7 @@ async function rfidScan(req, res) {
                 // 1. Lỗi: Xuống xe giữa đường (cách xa tất cả điểm dừng > 0.5km)
                 if (minDist > 0.5 && minDist !== 9999) {
                     isAbnormal = true;
+                    matchedStop = 'Điểm không xác định'; // Ghi đè tên trạm để đồng bộ với lúc lên xe
                     abnormalReason = `Xuống sai điểm (Cách điểm hợp lệ gần nhất ~${(minDist).toFixed(1)}km)`;
                     alertMessage = `🚨 *CẢNH BÁO KHẨN CẤP*\n\nHọc sinh *${student.fullName}* vừa quẹt thẻ XUỐNG XE tại vị trí BẤT THƯỜNG (không khớp với bất kỳ điểm dừng nào trong lộ trình).\n\n📞 Phụ huynh vui lòng liên hệ nhà trường hoặc tài xế ngay lập tức!`;
 

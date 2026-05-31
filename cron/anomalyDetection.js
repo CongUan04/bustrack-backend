@@ -64,32 +64,32 @@ const initAnomalyDetectionJob = () => {
                                            currentTotalMins >= classStartMins + 5 && 
                                            currentTotalMins < safeClassEndMins;
                 
-                // Kiểm tra buổi chiều & qua đêm: Nếu thời gian hiện tại lớn hơn (giờ tan học + 15 phút) 
+                // Kiểm tra buổi chiều & qua đêm: Nếu thời gian hiện tại lớn hơn (giờ tan học + 5 phút) 
                 // HOẶC là ban đêm/sáng sớm trước giờ đi học (trước giờ vào lớp 60 phút)
                 const isAfternoonForgotten = safeClassEndMins > 0 && 
-                                             (currentTotalMins >= safeClassEndMins + 15 || 
+                                             (currentTotalMins >= safeClassEndMins + 5 || 
                                               (classStartMins > 0 && currentTotalMins < classStartMins - 60));
 
                 if (isMorningForgotten || isAfternoonForgotten) {
                     const tripType = isMorningForgotten ? 'Morning' : 'Afternoon';
 
-                    // KIỂM TRA CHỐNG SPAM (Dành cho báo cáo đồ án, cho phép test lại sau 60 phút thay vì bị chặn cả ngày)
-                    const sixtyMinsAgo = new Date(now.getTime() - 60 * 60 * 1000);
+                    // KIỂM TRA CHỐNG SPAM (Chỉ chặn trong vòng 5 phút để phù hợp kịch bản Demo liên tục)
+                    const fiveMinsAgo = new Date(now.getTime() - 5 * 60 * 1000);
                     const existingAlert = await Alert.findOne({
                         student_id: student._id,
                         alert_type: 'STUDENT_FORGOTTEN',
                         'meta.tripType': tripType,
-                        timestamp: { $gte: sixtyMinsAgo }
+                        timestamp: { $gte: fiveMinsAgo }
                     });
 
-                    // Nếu đã cảnh báo trong vòng 60 phút qua thì bỏ qua để không spam liên tục
+                    // Nếu đã cảnh báo trong vòng 5 phút qua thì bỏ qua để không spam liên tục
                     if (existingAlert) continue;
 
                     const timeLabel = isMorningForgotten ? 'Giờ vào lớp (Đã đến trường)' : 'Giờ tan học';
                     const timeValue = isMorningForgotten ? student.classStartTime : student.classEndTime;
                     const contextMsg = isMorningForgotten 
                         ? `Xe đã đến trường và quá giờ vào lớp 5 phút nhưng em vẫn chưa quẹt thẻ xuống xe.` 
-                        : `Đã quá thời gian tan học dự kiến (15 phút) nhưng em vẫn chưa quẹt thẻ xuống trạm.`;
+                        : `Đã quá thời gian tan học (5 phút) nhưng em vẫn chưa quẹt thẻ xuống trạm.`;
 
                     console.warn(`[Anomaly Detection] 🚨 CẢNH BÁO: Học sinh ${student.fullName} (Lớp ${student.class}) bị bỏ quên trên xe! ${timeLabel}: ${timeValue}`);
 

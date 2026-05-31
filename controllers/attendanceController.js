@@ -265,9 +265,45 @@ async function rfidScan(req, res) {
                     }).catch(err => console.error('[RFID Alert] Lỗi tạo cảnh báo ABNORMAL_SCAN:', err));
                 }
             } else {
-                // Nếu LÊN XE sai điểm thì ghi nhận vị trí không xác định, chưa cần báo động đỏ
+                // Xử lý khi LÊN XE (Boarding)
                 if (minDist > 0.5 && minDist !== 9999) {
                     matchedStop = 'Điểm không xác định';
+                }
+
+                // 3. Lỗi: Lên xe GIỮA GIỜ HỌC
+                const now = new Date();
+                const vnTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
+                const currentMins = vnTime.getHours() * 60 + vnTime.getMinutes();
+                
+                let startMins = 0;
+                let endMins = 0;
+                if (student.classStartTime) {
+                    const [h, m] = student.classStartTime.split(':').map(Number);
+                    startMins = h * 60 + m;
+                }
+                if (student.classEndTime) {
+                    const [h, m] = student.classEndTime.split(':').map(Number);
+                    endMins = h * 60 + m;
+                }
+
+                // Chỉ báo động nếu thời gian hiện tại nằm sâu trong giờ học 
+                // (Sau khi vào lớp 15 phút & Trước khi tan học 15 phút) để tránh báo nhầm khi các em ra về sớm một chút.
+                if (startMins > 0 && endMins > 0 && currentMins > (startMins + 15) && currentMins < (endMins - 15)) {
+                    isAbnormal = true;
+                    abnormalReason = `Lên xe giữa giờ học (Có thể trốn tiết / về sớm)`;
+                    alertMessage = `🚨 *CẢNH BÁO BẤT THƯỜNG*\n\nHọc sinh *${student.fullName}* vừa quẹt thẻ LÊN XE trong thời gian đang diễn ra giờ học chính khóa!\n\n📞 Phụ huynh và Giáo viên chủ nhiệm vui lòng xác minh xem em có đang trốn tiết hoặc về sớm không!`;
+                    
+                    const Alert = require('../models/Alert');
+                    Alert.create({
+                        alert_type: 'ABNORMAL_SCAN',
+                        message: `Học sinh ${student.fullName} lên xe giữa giờ học chính khóa.`,
+                        severity: 'warning',
+                        bus_id: bus._id,
+                        student_id: student._id
+                    }).then(alertDoc => {
+                        const io = getIo();
+                        if (io) io.emit('new_alert', alertDoc);
+                    }).catch(err => console.error('[RFID Alert] Lỗi tạo cảnh báo ABNORMAL_SCAN:', err));
                 }
             }
         }
